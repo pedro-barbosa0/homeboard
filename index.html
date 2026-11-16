@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New Tab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="widgets.css">
+<link rel="stylesheet" href="widgets-more.css">
+<link rel="stylesheet" href="extras.css">
+</head>
+<body data-pattern="dots">
+
+<div id="backdrop"></div>
+<main id="canvas"><div id="world"></div></main>
+
+<!-- a board that shows one page, PDF or folder instead of cards -->
+<div id="page" class="pill" hidden></div>
+
+<!-- boards: a rail of icons that opens into a tree when pointed at -->
+<nav id="tabs" class="pill" aria-label="Boards"></nav>
+
+<!-- notes that belong to the open board -->
+<aside id="side" class="pill" hidden aria-label="Board notes">
+  <h2>Notes</h2>
+  <div id="side-text" class="note-text" contenteditable="true" data-placeholder="Notes for this board…"></div>
+</aside>
+
+<header id="topbar">
+  <span></span>
+
+  <form id="search" class="pill" role="search" autocomplete="off">
+    <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+    <input id="search-input" type="text" placeholder="Search the web or type an address" spellcheck="false" aria-label="Search the web">
+  </form>
+
+  <div id="right">
+    <span id="offline" class="pill" hidden title="No internet connection. Notes, lists, files and widgets keep working; website windows reload when it returns.">offline</span>
+    <div id="clock" class="pill" aria-live="off"><b id="clock-time"></b><span id="clock-date"></span></div>
+    <button id="settings-btn" class="pill square" type="button" title="Customize" aria-label="Customize">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="dock" class="pill" role="toolbar" aria-label="Add to board">
+  <button class="dock-btn" type="button" data-add="note" title="Add a note">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/></svg><span>Note</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="todo" title="Add a to-do list">
+    <svg class="ico" viewBox="0 0 24 24"><path d="m4 7 2 2 3-4"/><path d="m4 16 2 2 3-4"/><path d="M13 7h7M13 16h7"/></svg><span>To-do</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="web" title="Add a website window">
+    <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.500 0 18M12 3c-3 3.5-3 14.500 0 18"/></svg><span>Website</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="links" title="Add a set of quick links">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1"/><path d="M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1"/></svg><span>Links</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="media" title="Add an image, video or PDF (or just drop one on the board)">
+    <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 5-5 4 4 2-2 4 4"/></svg><span>Media</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="files" title="Add a file browser with previews">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Files</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="term" title="Add a console (PowerShell)">
+    <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 10 3 2-3 2M12 15h5"/></svg><span>Console</span>
+  </button>
+  <button class="dock-btn" type="button" data-add="widget" title="Add a widget: clock, games, pool table, cigarette pack">
+    <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.500"/><path d="M8.500 8.500h.01M15.500 15.500h.01M12 12h.01M15.500 8.500h.01M8.500 15.500h.01"/></svg><span>Widgets</span>
+  </button>
+  <input type="file" id="media-file" accept="image/*,video/*,application/pdf" multiple hidden>
+</div>
+
+<div id="zoom" class="pill" role="toolbar" aria-label="Zoom">
+  <button class="icon-btn" type="button" id="zoom-out" title="Zoom out"><svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+  <button type="button" id="zoom-label" title="Reset to 100%">100%</button>
+  <button class="icon-btn" type="button" id="zoom-in" title="Zoom in"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="icon-btn" type="button" id="zoom-fit" title="Fit everything on screen"><svg class="ico" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
+
+<aside id="settings" class="pill" hidden aria-label="Customize">
+  <div class="set-head">
+    <h2>Customize</h2>
+    <button class="icon-btn" type="button" id="settings-close" title="Close"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+
+  <div class="set-body">
+  <section>
+    <h3>Looks</h3>
+    <p class="note" id="look-note"></p>
+    <div id="looks"></div>
+    <button type="button" class="btn" id="look-save">Save what you see as a new look</button>
+  </section>
+
+  <section>
+    <h3>Theme</h3>
+    <div id="themes"></div>
+    <label class="row">Pattern
+      <select data-set="pattern">
+        <option value="none">None</option><option value="dots">Dots</option>
+        <option value="grid">Grid</option><option value="lines">Lines</option>
+      </select></label>
+    <div class="row">Background image
+      <span class="ctl">
+        <button type="button" class="link" id="bg-clear">Remove</button>
+        <button type="button" class="btn" id="bg-pick">Choose…</button>
+        <input type="file" id="bg-file" accept="image/*" hidden>
+      </span></div>
+  </section>
+
+  <section>
+    <h3>Colours</h3>
+    <label class="row">Accent
+      <span class="ctl"><button type="button" class="link" data-reset="accent">Reset</button><input type="color" data-set="accent"></span></label>
+    <label class="row">Background
+      <span class="ctl"><button type="button" class="link" data-reset="bg">Reset</button><input type="color" data-set="bg"></span></label>
+    <label class="row">Cards
+      <span class="ctl"><button type="button" class="link" data-reset="surface">Reset</button><input type="color" data-set="surface"></span></label>
+    <label class="row">Panels and bars
+      <span class="ctl"><button type="button" class="link" data-reset="raise">Reset</button><input type="color" data-set="raise"></span></label>
+    <label class="row">Text
+      <span class="ctl"><button type="button" class="link" data-reset="text">Reset</button><input type="color" data-set="text"></span></label>
+  </section>
+
+  <section>
+    <h3>Shape and text</h3>
+    <label class="row">Card opacity <input type="range" min="40" max="100" step="1" data-set="cardAlpha"></label>
+    <label class="row">Panel opacity <input type="range" min="40" max="100" step="1" data-set="chromeAlpha"></label>
+    <label class="row">Corner roundness <input type="range" min="0" max="24" step="1" data-set="radius"></label>
+    <label class="row">Text size <input type="range" min="12" max="18" step="1" data-set="fontSize"></label>
+    <label class="row">Font
+      <select data-set="font">
+        <option value="system">Modern</option><option value="serif">Serif</option>
+        <option value="mono">Monospace</option><option value="hand">Handwritten</option>
+      </select></label>
+    <label class="row">Snap to grid <input type="checkbox" data-set="snap"></label>
+  </section>
+
+  <section>
+    <h3>Top bar</h3>
+    <label class="row">Search with
+      <select data-set="engine">
+        <option value="bing">Bing</option><option value="google">Google</option><option value="ddg">DuckDuckGo</option>
+      </select></label>
+    <label class="row">Show clock <input type="checkbox" data-set="clock"></label>
+    <label class="row">12-hour clock <input type="checkbox" data-set="hour12"></label>
+    <label class="row">Hide the add bar until the mouse is at the bottom <input type="checkbox" data-set="dockHide"></label>
+  </section>
+
+  <section>
+    <h3>Website windows</h3>
+    <label class="row">Load sites that refuse embedding <input type="checkbox" data-set="unblock" id="unblock"></label>
+    <p class="note" id="unblock-note"></p>
+  </section>
+
+  <section>
+    <h3>Your data</h3>
+    <p class="note" id="storage-note"></p>
+    <p class="note" id="helper-note"></p>
+    <div class="btn-row">
+      <button type="button" class="btn" id="export">Export backup</button>
+      <button type="button" class="btn" id="import">Import backup</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+    <p class="note" id="version-note"></p>
+    <button type="button" class="link" id="undo-update" hidden></button>
+    <button type="button" class="link danger" id="reset">Erase everything and start over</button>
+  </section>
+  </div>
+</aside>
+
+<div id="menu" class="pill" hidden role="menu"></div>
+<div id="toast" class="pill" hidden role="status"></div>
+
+<script src="widgets.js"></script>
+<script src="widgets-more.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

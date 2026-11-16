@@ -1,0 +1,138 @@
+/* Styles for widgets-more.js (clock and the small games) and the website window's quick starts. */
+
+/* ---------- shared by the small games ---------- */
+.g48, .ms, .sdk, .sld, .clock-widget { flex: 1; min-height: 0; display: flex; flex-direction: column; outline: none; }
+.game-head {
+  display: flex; align-items: center; gap: 10px; padding: 0 3px 7px; flex: none;
+  font-size: 13px; color: var(--text); text-shadow: 0 1px 3px rgba(0, 0, 0, .55); user-select: none;
+}
+.game-head b { font-weight: 700; margin-right: auto; }
+.game-stat { font-weight: 600; font-variant-numeric: tabular-nums; }
+.game-stat.dim { opacity: .65; font-weight: 500; }
+.game-fit { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+.game-banner {
+  position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; text-align: center; border-radius: inherit;
+  background: rgba(0, 0, 0, .58); color: #fff; font: 700 17px/1.3 "Segoe UI", system-ui, sans-serif; pointer-events: none;
+}
+
+/* ---------- sound visualiser ---------- */
+.viz { flex: 1; min-height: 0; position: relative; display: flex; outline: none; cursor: pointer; }
+.viz canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.viz-hint {
+  position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .15s;
+  font: 500 11px/1.3 "Segoe UI", system-ui, sans-serif; color: var(--text); text-shadow: 0 1px 3px rgba(0, 0, 0, .7);
+}
+.card:hover .viz-hint { opacity: .6; }
+.viz-hint.show { opacity: .9; }
+
+/* ---------- clock ---------- */
+.clock-widget { container-type: size; align-items: center; justify-content: center; gap: 6px; color: var(--text); user-select: none; }
+.clock-face { width: min(96cqw, 84cqh); aspect-ratio: 1; }
+.clock-face svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .4)); }
+.clock-face.glow svg { filter: drop-shadow(0 0 5px #00f0ff) drop-shadow(0 0 14px rgba(255, 43, 214, .65)); }
+.clock-digits { display: flex; align-items: baseline; gap: 1.5cqw; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+.clock-time { font-size: min(31cqw, 62cqh); letter-spacing: -.02em; }
+.clock-sec { font-size: min(11cqw, 22cqh); opacity: .6; }
+.clock-digits.led {
+  font-family: "Cascadia Mono", Consolas, monospace; color: #ff453a; background: #140808; border: 1px solid #3a1414;
+  padding: 5cqmin 7cqmin; border-radius: 4cqmin; text-shadow: 0 0 10px rgba(255, 69, 58, .85);
+}
+.clock-date { font-size: clamp(10px, 7cqmin, 22px); font-weight: 500; opacity: .72; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+
+/* ---------- 2048 ---------- */
+.g48-board {
+  position: relative; width: min(100cqw, 100cqh); aspect-ratio: 1; padding: 1.5%; border-radius: 10px; touch-action: none;
+  display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+  background: #2a2d36; box-shadow: 0 8px 22px rgba(0, 0, 0, .4); font-size: calc(min(100cqw, 100cqh) * .095);
+}
+.g48-cell { margin: 4%; border-radius: 9%; background: rgba(255, 255, 255, .06); }
+.g48-tiles { position: absolute; inset: 1.5%; }
+.g48-tile { position: absolute; width: 25%; height: 25%; left: calc(var(--c) * 25%); top: calc(var(--r) * 25%); transition: left .12s ease-out, top .12s ease-out; }
+.g48-tile span {
+  position: absolute; inset: 4%; border-radius: 9%; display: grid; place-items: center;
+  font-weight: 800; color: #1d1f24; background: #e8e4da;
+}
+.g48-tile.pop span { animation: g48-pop .16s ease-out; }
+.g48-tile[data-v="4"] span { background: #e3d7b8; }
+.g48-tile[data-v="8"] span { background: #f5c84c; }
+.g48-tile[data-v="16"] span { background: #f59e5b; }
+.g48-tile[data-v="32"] span { background: #f0717d; color: #fff; }
+.g48-tile[data-v="64"] span { background: #ee7fc2; color: #fff; }
+.g48-tile[data-v="128"] span { background: #a78bfa; color: #fff; font-size: .82em; }
+.g48-tile[data-v="256"] span { background: #6aa8ff; color: #fff; font-size: .82em; }
+.g48-tile[data-v="512"] span { background: #4fd1c5; font-size: .82em; }
+.g48-tile[data-v="1024"] span { background: #6fd08c; font-size: .66em; }
+.g48-tile[data-v="2048"] span { background: #fff; font-size: .66em; box-shadow: 0 0 18px rgba(255, 255, 255, .8); }
+.g48-tile[data-v="big"] span { background: #16171c; color: #fff; font-size: .6em; box-shadow: 0 0 14px rgba(255, 255, 255, .5); }
+@keyframes g48-pop { from { transform: scale(.72); } 70% { transform: scale(1.06); } to { transform: scale(1); } }
+
+/* ---------- minesweeper ---------- */
+.ms .game-head { justify-content: space-between; }
+.ms-face { border: 0; background: none; padding: 0; font-size: 18px; line-height: 1; cursor: pointer; }
+.ms-grid {
+  display: grid; grid-template-columns: repeat(var(--w), 1fr); gap: 1px; padding: 1px;
+  width: min(100cqw, calc(100cqh * var(--w) / var(--h))); aspect-ratio: var(--w) / var(--h);
+  background: #14161b; border-radius: 6px; overflow: hidden; box-shadow: 0 8px 22px rgba(0, 0, 0, .4);
+  font-size: calc(min(100cqw / var(--w), 100cqh / var(--h)) * .58);
+}
+.ms-cell {
+  min-width: 0; aspect-ratio: 1; padding: 0; border: 0; display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(#6b7484, #565e6c); color: #ffd166; font: 800 1em/1 "Segoe UI", system-ui, sans-serif;
+}
+.ms-cell:hover { filter: brightness(1.12); }
+.ms-cell.open { background: #262a32; cursor: default; filter: none; color: #e7e9ee; }
+.ms-cell.hit { background: #c8323a; }
+.ms-cell.wrong { color: #f0717d; text-decoration: line-through; }
+.ms-cell[data-n="1"] { color: #6aa8ff; } .ms-cell[data-n="2"] { color: #6fd08c; } .ms-cell[data-n="3"] { color: #f0717d; }
+.ms-cell[data-n="4"] { color: #a78bfa; } .ms-cell[data-n="5"] { color: #f59e5b; } .ms-cell[data-n="6"] { color: #4fd1c5; }
+.ms-cell[data-n="7"] { color: #e7e9ee; } .ms-cell[data-n="8"] { color: #8b93a6; }
+
+/* ---------- sudoku ---------- */
+.sdk-grid {
+  position: relative; display: grid; grid-template-columns: repeat(9, 1fr); width: min(100cqw, 100cqh); aspect-ratio: 1;
+  background: var(--surface); border: 2px solid color-mix(in srgb, var(--text) 70%, transparent); border-radius: 7px; overflow: hidden;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .4); font-size: calc(min(100cqw, 100cqh) * .062);
+}
+.sdk-cell {
+  min-width: 0; aspect-ratio: 1; padding: 0; border: 0; display: grid; place-items: center; cursor: pointer; background: none;
+  border-right: 1px solid color-mix(in srgb, var(--text) 16%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  color: var(--accent); font: 600 1em/1 "Segoe UI", system-ui, sans-serif;
+}
+.sdk-cell.given { color: var(--text); font-weight: 700; }
+.sdk-cell.br { border-right: 2px solid color-mix(in srgb, var(--text) 60%, transparent); }
+.sdk-cell.bb { border-bottom: 2px solid color-mix(in srgb, var(--text) 60%, transparent); }
+.sdk-cell.peer { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.sdk-cell.same { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.sdk-cell.sel { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.sdk-cell.bad { color: #f0717d; }
+.sdk-cell.noted { grid-template-columns: repeat(3, 1fr); place-items: stretch; font-size: .36em; color: var(--muted); font-weight: 600; }
+.sdk-cell.noted i { font-style: normal; display: grid; place-items: center; }
+.sdk-pad { display: flex; gap: 3px; padding-top: 8px; flex: none; justify-content: center; }
+.sdk-key {
+  flex: 1; max-width: 36px; height: 30px; padding: 0; border-radius: 7px; cursor: pointer; font: 600 13px "Segoe UI", system-ui, sans-serif;
+  border: 1px solid var(--border); background: color-mix(in srgb, var(--raise) 88%, transparent); color: var(--text);
+}
+.sdk-key:hover { border-color: var(--accent); }
+.sdk-key.pen.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+
+/* ---------- sliding puzzle ---------- */
+.sld-board { position: relative; width: min(100cqw, 100cqh); aspect-ratio: 1; border-radius: 10px; background: rgba(0, 0, 0, .4); box-shadow: 0 8px 22px rgba(0, 0, 0, .4); overflow: hidden; }
+.sld-tile {
+  position: absolute; width: calc(100% / var(--n)); height: calc(100% / var(--n)); padding: 0; cursor: pointer;
+  left: calc(var(--c) * 100% / var(--n)); top: calc(var(--r) * 100% / var(--n)); transition: left .14s ease-out, top .14s ease-out, border-width .3s;
+  border: 2px solid transparent; background-clip: padding-box; border-radius: 9px;
+  background-color: color-mix(in srgb, var(--text) 16%, var(--surface)); color: var(--text);
+  font: 800 calc(min(100cqw, 100cqh) / var(--n) * .36) / 1 "Segoe UI", system-ui, sans-serif;
+}
+.sld-tile:hover { filter: brightness(1.12); }
+.sld-tile.pic span { position: absolute; left: 7%; top: 6%; font-size: .36em; color: #fff; text-shadow: 0 1px 3px #000, 0 0 2px #000; }
+.sld-tile.nonum span { display: none; }
+.sld-board.done .sld-tile.pic { border-width: 0; border-radius: 0; }
+
+/* ---------- quick starts in an empty website window ---------- */
+.web-sites { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 440px; }
+.web-site {
+  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; font-size: .9em;
+  background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text);
+}
+.web-site:hover { border-color: var(--accent); }

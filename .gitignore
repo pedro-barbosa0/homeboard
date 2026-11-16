@@ -1,0 +1,10 @@
+# Belongs to one installed copy, never shared
+helper/token.txt
+helper/paired-with.txt
+backups/
+
+# Your own desktop wallpaper, used by the Acrylic theme on this computer
+wallpaper.jpg
+
+node_modules/
+*.zip

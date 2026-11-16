@@ -1,0 +1,103 @@
+/* Styles for widgets.js. Bare widgets have no card frame: the object itself is the card. */
+
+.card.bare { box-shadow: none !important; border-color: transparent !important; }
+.card.bare.selected { border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent) !important; }
+.card.bare .card-head { display: none; }
+.card.bare .card-body { overflow: visible; border-radius: 0; cursor: grab; }
+.widget-body { position: relative; }
+
+/* ---------- pool ---------- */
+.game-stage { flex: 1; min-height: 0; position: relative; }
+.game-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+
+/* ---------- cigarette pack ---------- */
+.pack-widget { flex: 1; min-height: 0; display: grid; place-items: center; }
+.pack-rig { width: 230px; height: 245px; position: relative; flex: none; }
+.pack {
+  position: absolute; left: 22px; bottom: 14px; width: 120px; height: 190px; perspective: 520px;
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, .45));
+}
+.pack-back { position: absolute; inset: 0; border-radius: 4px; background: linear-gradient(#cdb994, #a8926c); }
+.pack-front, .pack-lid { position: absolute; left: 0; width: 100%; overflow: hidden; cursor: pointer; }
+.pack-front svg, .pack-lid svg { display: block; width: 100%; height: 100%; }
+/* shading and a hint of cellophane over whatever the pack face is */
+.pack-front::after, .pack-lid::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, .13) 30%, transparent 42%),
+    linear-gradient(90deg, rgba(0, 0, 0, .2), transparent 9%, transparent 90%, rgba(0, 0, 0, .24));
+}
+.pack-front { bottom: 0; height: 136px; z-index: 2; border-radius: 0 0 4px 4px; }
+.pack-lid {
+  top: 0; height: 54px; z-index: 3; border-radius: 4px 4px 0 0; box-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+  transform-origin: 50% 100%;
+  transition: transform .5s cubic-bezier(.3, .8, .3, 1), z-index 0s .12s;
+}
+.pack-lid::after {                                  /* the inside of the lid */
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(#dccaa8, #b9a47c); opacity: 0; transition: opacity .05s .12s;
+}
+/* open: the lid stands up behind the cigarettes, leaning back */
+.pack.open .pack-lid { transform: translateY(-42px) rotateX(42deg); z-index: 0; }
+.pack.open .pack-lid::after { opacity: 1; }
+
+.pack-tips { position: absolute; left: 6px; right: 6px; top: 8px; height: 50px; z-index: 1; cursor: pointer; }
+.pack-tip {
+  position: absolute; width: 14px; height: 46px; border-radius: 7px 7px 0 0;
+  background: radial-gradient(circle at 50% 7px, #f3d9a8 0 3px, transparent 4px), linear-gradient(90deg, #b9833f, #e2b06b 45%, #c08a45);
+  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .25);
+}
+.pack-tip.row0 { top: 0; filter: brightness(.82); }
+.pack-tip.row1 { top: 5px; filter: brightness(.92); }
+.pack-tip.row2 { top: 10px; }
+.pack-tip.row0:nth-child(1) { left: 5px; }   .pack-tip.row0:nth-child(2) { left: 19px; }  .pack-tip.row0:nth-child(3) { left: 33px; }
+.pack-tip.row0:nth-child(4) { left: 47px; }  .pack-tip.row0:nth-child(5) { left: 61px; }  .pack-tip.row0:nth-child(6) { left: 75px; }
+.pack-tip.row0:nth-child(7) { left: 89px; }
+.pack-tip.row1:nth-child(8) { left: 12px; }  .pack-tip.row1:nth-child(9) { left: 26px; }  .pack-tip.row1:nth-child(10) { left: 40px; }
+.pack-tip.row1:nth-child(11) { left: 54px; } .pack-tip.row1:nth-child(12) { left: 68px; } .pack-tip.row1:nth-child(13) { left: 82px; }
+.pack-tip.row2:nth-child(14) { left: 5px; }  .pack-tip.row2:nth-child(15) { left: 19px; } .pack-tip.row2:nth-child(16) { left: 33px; }
+.pack-tip.row2:nth-child(17) { left: 47px; } .pack-tip.row2:nth-child(18) { left: 61px; } .pack-tip.row2:nth-child(19) { left: 75px; }
+.pack-tip.row2:nth-child(20) { left: 89px; }
+.pack-tips:hover .pack-tip { filter: brightness(1.1); }
+
+.pack-count {
+  position: absolute; left: 22px; width: 120px; bottom: -4px; text-align: center; pointer-events: auto;
+  font: 600 11px/1 "Segoe UI", system-ui, sans-serif; color: var(--text); opacity: .5;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .7); user-select: none;
+}
+.card:hover .pack-count { opacity: .9; }
+
+.pack-slot { position: absolute; right: 18px; bottom: 14px; width: 40px; height: 215px; }
+.cig {
+  position: absolute; left: 13px; bottom: 0; width: 13px; height: 160px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  transform: rotate(7deg); transform-origin: 50% 100%; cursor: pointer; touch-action: none;
+  filter: drop-shadow(2px 4px 3px rgba(0, 0, 0, .45));
+}
+.cig-filter { height: 44px; flex: none; border-radius: 0 0 3px 3px; background: linear-gradient(#e9c46a 0 2px, transparent 2px), linear-gradient(90deg, #b9833f, #e2b06b 45%, #c08a45); }
+.cig-burn { position: relative; height: 112px; flex: none; border-radius: 3px 3px 0 0; background: linear-gradient(#6b4a2e 0 3px, transparent 3px), linear-gradient(90deg, #d9d6cc, #fbfaf5 45%, #dedbd0); }
+.cig.lit .cig-burn { background: linear-gradient(90deg, #d9d6cc, #fbfaf5 45%, #dedbd0); }
+.cig-ember {
+  display: none; position: absolute; left: 0; right: 0; top: -5px; height: 9px; border-radius: 4px 4px 1px 1px;
+  background: linear-gradient(#8d8d8d 0 3px, #c2571a 3px 6px, #5b2a12 6px);
+  box-shadow: 0 2px 5px rgba(255, 110, 20, .35); transition: box-shadow .25s, filter .25s;
+}
+.cig.puff .cig-ember {                               /* being smoked right now */
+  background: linear-gradient(#8d8d8d 0 3px, #ff7a1a 3px 6px, #5b2a12 6px);
+  box-shadow: 0 2px 10px 2px rgba(255, 110, 20, .9); animation: pack-glow 1.1s ease-in-out infinite alternate;
+}
+.smoke {
+  display: none; position: absolute; left: 50%; top: -10px; width: 9px; height: 9px; margin-left: -4px; border-radius: 50%;
+  background: rgba(215, 215, 215, .6); filter: blur(3px); animation: pack-smoke 3.4s linear infinite; opacity: 0;
+}
+.smoke.s2 { animation-delay: -1.1s; } .smoke.s3 { animation-delay: -2.2s; }
+.cig.lit .cig-ember, .cig.lit .smoke { display: block; }
+.cig.lit:not(.puff) .smoke.s2, .cig.lit:not(.puff) .smoke.s3 { display: none; }   /* resting: a thin wisp */
+.cig.puff .smoke { animation-duration: 2.2s; }
+@keyframes pack-burn { from { height: 112px; } to { height: 0; } }
+@keyframes pack-glow { from { filter: brightness(.9); } to { filter: brightness(1.3); } }
+@keyframes pack-smoke {
+  from { transform: translate(0, 0) scale(.6); opacity: 0; }
+  20% { opacity: .7; }
+  to { transform: translate(14px, -70px) scale(2.800); opacity: 0; }
+}

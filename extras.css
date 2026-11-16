@@ -1,0 +1,185 @@
+/* Looks list, hidden and locked cards, and the immersive pickers (cue rack, tobacco machine). */
+
+/* ---------- the add bar: out of sight until the mouse nears the bottom edge ---------- */
+#dock { transition: transform .2s ease, opacity .2s ease; }
+body.dock-hide #dock { transform: translate(-50%, calc(100% + 26px)); opacity: 0; }
+body.dock-hide.dock-near #dock, body.dock-hide #dock:hover, body.dock-hide #dock:focus-within { transform: translateX(-50%); opacity: 1; }
+body.dock-hide::after {                              /* a faint handle, so the bar can be found */
+  content: ""; position: fixed; left: 50%; bottom: 5px; width: 44px; height: 4px; margin-left: -22px; z-index: 49; pointer-events: none;
+  border-radius: 2px; background: color-mix(in srgb, var(--text) 28%, transparent); transition: opacity .2s;
+}
+body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
+
+/* ---------- file browser: a mark per file type ---------- */
+.fmark { flex: none; width: 24px; text-align: center; font: 700 9.5px/1 "Cascadia Mono", Consolas, ui-monospace, monospace; letter-spacing: -.03em; }
+.files-row > svg { flex: none; width: 16px; margin: 0 4px; }
+.files-row.dir > svg.fmark-folder { color: #e2b659; fill: color-mix(in srgb, #e2b659 28%, transparent); }
+
+/* ---------- file browser: dragging between folders ---------- */
+.files-row[draggable="true"] { -webkit-user-drag: element; }
+.files-row.drop, .files-list.drop { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.files-name.editing { user-select: text; cursor: text; text-overflow: clip; box-shadow: 0 0 0 1.5px var(--accent); border-radius: 4px; }
+
+/* ---------- console card ---------- */
+.card-term .card-body { background: #0c0d10; color: #d7dae0; font: 12.5px/1.45 "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace; }
+.term-out { flex: 1; min-height: 0; margin: 0; padding: 8px 10px 4px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; outline: none; user-select: text; cursor: text; }
+.term-out .err { color: #f0717d; }
+.term-out .cmd { color: #8fb4ff; }
+.term-out .dim { color: #7d8597; }
+.term-out .btn { font-family: "Segoe UI", system-ui, sans-serif; margin-top: 6px; color: #d7dae0; }
+.term-line { display: flex; align-items: center; gap: 8px; padding: 4px 10px 8px; flex: none; }
+.term-prompt { color: #6fd08c; white-space: nowrap; }
+.term-in { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: inherit; font: inherit; caret-color: #6fd08c; }
+
+/* ---------- no connection ---------- */
+#offline { height: 40px; padding: 0 12px; display: flex; align-items: center; font-size: .85em; color: var(--muted); white-space: nowrap; }
+
+/* ---------- saved looks ---------- */
+#looks { display: grid; gap: 4px; margin-bottom: 10px; }
+#looks:empty { display: none; }
+.look-row { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 6px; border-radius: var(--r-in); border: 1px solid transparent; }
+.look-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.look-row.on { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.look-swatch { flex: none; width: 34px; height: 24px; border-radius: 6px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+.look-swatch::after { content: ""; position: absolute; left: 5px; top: 5px; right: 11px; bottom: 5px; border-radius: 3px; background: var(--s); border-bottom: 2px solid var(--a); }
+.look-name { flex: 1; min-width: 0; padding: 3px 4px; border: 0; border-radius: 5px; background: none; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.look-name.editing { cursor: text; user-select: text; text-overflow: clip; box-shadow: 0 0 0 1.5px var(--accent); }
+.look-row .icon-btn.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* ---------- cards that hide what they hold ---------- */
+.card.veil .card-body { filter: blur(11px) saturate(.6); transition: filter .18s; }
+.card.veil .card-meta { visibility: hidden; }
+.card.veil-hover:hover .card-body, .card.veil-click.selected .card-body { filter: none; }
+.card.veil-hover:hover .card-meta, .card.veil-click.selected .card-meta { visibility: visible; }
+.lock-form {
+  flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 16px 10px; text-align: center; color: var(--muted);
+}
+.lock-form > svg { width: 20px; height: 20px; flex: none; opacity: .7; }
+.lock-form .btn { padding: 4px 12px; }
+.lock-form .field { width: min(100%, 230px); text-align: center; }
+.lock-form .hint { margin: 0; font-size: .86em; max-width: 30ch; }
+
+/* ---------- pickers: a dimmed page with the object in the middle ---------- */
+.hb-modal { position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; background: rgba(0, 0, 0, .62); animation: hb-fade .15s ease-out; }
+@keyframes hb-fade { from { opacity: 0; } }
+.hb-modal-box { max-width: 94vw; max-height: 92vh; display: flex; flex-direction: column; color: #f4f1e6; font: 13px/1.3 "Segoe UI", system-ui, sans-serif; user-select: none; }
+.hb-modal-tip { text-align: center; opacity: .7; padding-top: 10px; }
+
+/* cue rack: a wall-mounted rack, cues standing in it */
+.cue-rack { padding: 18px 18px 14px; border-radius: 14px; background: linear-gradient(#3a2416, #2a190f); box-shadow: 0 30px 80px rgba(0, 0, 0, .6), inset 0 0 0 2px rgba(255, 255, 255, .06); }
+.rack-wall {
+  position: relative; width: min(760px, 86vw); border-radius: 8px; overflow: hidden;
+  background: repeating-linear-gradient(90deg, #1d6f52 0 6px, #1b6a4e 6px 12px); box-shadow: inset 0 0 40px rgba(0, 0, 0, .55);
+}
+.rack-row { display: flex; gap: 6px; overflow-x: auto; padding: 26px 26px 0; scrollbar-width: thin; scroll-snap-type: x proximity; }
+.rack-bar { position: absolute; left: 0; right: 0; height: 16px; background: linear-gradient(#6b4630, #4a2f1f); box-shadow: 0 3px 8px rgba(0, 0, 0, .5); pointer-events: none; z-index: 2; }
+.rack-bar.top { top: 74px; } .rack-bar.bottom { bottom: 44px; height: 22px; }
+.rack-slot {
+  flex: none; width: 74px; padding: 0 0 10px; border: 0; background: none; color: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; scroll-snap-align: center; border-radius: 8px;
+}
+.rack-slot:hover .rack-cue, .rack-slot:focus-visible .rack-cue { transform: translateY(-14px); }
+.rack-cue {
+  width: 11px; height: min(330px, 52vh); transition: transform .18s ease-out;
+  clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%);
+  background: linear-gradient(#3d7fd6 0 1.2%, #f4f1e6 1.2% 3.5%, var(--shaft) 3.5% 60%, var(--ring) 60% 61.2%, var(--butt) 61.2% 72%, var(--wrap) 72% 89%, var(--butt) 89% 98.5%, #111 98.5%);
+  filter: drop-shadow(3px 4px 3px rgba(0, 0, 0, .5));
+}
+.rack-slot.glow .rack-cue { filter: drop-shadow(0 0 6px #00f0ff) drop-shadow(0 0 12px #ff2bd6); }
+.rack-tag { position: relative; z-index: 3; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(0, 0, 0, .45); white-space: nowrap; }
+.rack-slot.on .rack-tag { background: linear-gradient(#e6c36a, #b8943f); color: #2a190f; }
+
+/* tobacco machine: it stands in a room and is scaled (zoom) to fill the height of the screen */
+.hb-modal.vend-room { place-items: end center; padding-bottom: 4vh; background: #0b0c10; }
+.hb-modal.vend-room[data-scene="none"] { place-items: center; padding-bottom: 0; background: rgba(0, 0, 0, .62); }
+.vend-scene { position: absolute; inset: 0; pointer-events: none; background: center / cover no-repeat; }
+.vend-scene svg { width: 100%; height: 100%; display: block; }
+.vend-scenes { position: absolute; left: 14px; bottom: 14px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; max-width: 32vw; }
+.vend-chip { padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .55); color: #f4f1e6; cursor: pointer; font: 12px "Segoe UI", system-ui, sans-serif; }
+.vend-chip:hover { border-color: #fff; }
+.vend-chip.on { background: #f4f1e6; color: #17181b; border-color: transparent; }
+.vend { --body: #3a3f45; --trim: #c9ccd1; --panel: #c4161c; --led: #ff3b30; --glass: #0c0d10; width: 430px; position: relative;
+  border-radius: 22px; padding: 14px; background: linear-gradient(90deg, #2a2e33, var(--body) 12%, var(--body) 88%, #24272b);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .65), inset 0 0 0 2px rgba(255, 255, 255, .06); }
+.vend[data-look="modern"] { --body: #17181b; --trim: #2a2c31; --panel: #0d0e10; --led: #36e3ff; --glass: #050608; border-radius: 10px; }
+.vend[data-look="retro"] { --body: #6b4630; --trim: #d9c9a8; --panel: #1f5d3a; --led: #ffb020; --glass: #1a1410; border-radius: 16px; }
+.vend-top { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px 12px 4px 4px; background: linear-gradient(var(--trim), color-mix(in srgb, var(--trim) 70%, #000)); color: #17181b; }
+.vend[data-look="modern"] .vend-top { color: #d7d9de; }
+.vend-brand { font-weight: 800; letter-spacing: .14em; font-size: 12px; }
+.vend-led { flex: 1; min-width: 0; padding: 5px 10px; border-radius: 5px; background: #120606; color: var(--led); font: 700 13px/1.2 "Cascadia Mono", Consolas, monospace; text-shadow: 0 0 8px var(--led); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vend-other { border: 0; background: rgba(0, 0, 0, .18); color: inherit; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 11px; }
+.vend-window { margin-top: 8px; padding: 8px; border-radius: 6px; background: var(--glass); max-height: 330px; overflow-y: auto; scrollbar-width: thin;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px 6px; box-shadow: inset 0 0 18px rgba(0, 0, 0, .8); }
+.vend-slot { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; display: grid; justify-items: center; gap: 3px; }
+.vend-num { font-size: 10px; opacity: .6; }
+.vend-pack { width: 100%; max-width: 54px; aspect-ratio: 120 / 190; border-radius: 2px; overflow: hidden; background: #f6f2e7; box-shadow: 0 0 10px rgba(255, 255, 255, .22); transition: transform .12s; display: grid; place-items: center; color: #555; font-size: 20px; }
+.vend-pack svg { width: 100%; height: 100%; display: block; }
+.vend-slot:hover .vend-pack, .vend-slot:focus-visible .vend-pack { transform: scale(1.08); }
+.vend-price { font: 700 10px/1 "Cascadia Mono", Consolas, monospace; color: var(--led); text-shadow: 0 0 6px var(--led); }
+.vend-key { width: 70%; height: 9px; border-radius: 5px; background: linear-gradient(#e9e9ea, #8d9096); box-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.vend-slot:active .vend-key { transform: translateY(1px); filter: brightness(.8); }
+.vend-slot.on .vend-pack { outline: 2px solid var(--led); outline-offset: 2px; }
+.vend-panel { margin-top: 10px; padding: 26px 12px; border-radius: 10px; background: var(--panel); text-align: center; box-shadow: inset 0 0 30px rgba(0, 0, 0, .25); }
+.vend-panel b { display: block; font: italic 800 30px/1 "Segoe UI", system-ui, sans-serif; letter-spacing: .02em; }
+.vend-panel small { display: block; margin-top: 10px; font-size: 10px; opacity: .8; }
+.vend-tray { position: relative; margin-top: 10px; height: 64px; border-radius: 6px 6px 12px 12px; background: linear-gradient(#08090a, #1c1e22); box-shadow: inset 0 8px 14px rgba(0, 0, 0, .9); overflow: hidden; }
+.vend-drop { position: absolute; left: 50%; bottom: 6px; width: 34px; aspect-ratio: 120 / 190; margin-left: -17px; border-radius: 2px; overflow: hidden; animation: vend-fall .55s cubic-bezier(.5, 0, .9, .6) both; transform: rotate(84deg); }
+.vend-drop svg { width: 100%; height: 100%; display: block; }
+/* ---- materials: brass cabinet, lit shelves behind glass, enamel panel, drawer and coin unit ---- */
+.vend {
+  --b1: #d9c898; --b2: #cdbb8f; --edge: #5d4c2c; --rail1: #f0deb0; --rail2: #9a8452; --led: #ff7a3d; --panel: #b3201f; --glass: #1a130c;
+  isolation: isolate; padding: 14px 14px 16px; border-radius: 28px 28px 10px 10px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--b2) 55%, #000), var(--b1) 7%, var(--b2) 50%, var(--b1) 93%, color-mix(in srgb, var(--b2) 50%, #000));
+  box-shadow: 0 0 0 2px var(--edge), inset 0 2px 0 rgba(255, 255, 255, .5), inset 0 -3px 6px rgba(0, 0, 0, .35), 0 40px 70px rgba(0, 0, 0, .7);
+}
+.vend[data-look="modern"] { --b1: #2a2c31; --b2: #17181b; --edge: #000; --rail1: #3a3d44; --rail2: #15161a; --led: #36e3ff; --panel: #101114; --glass: #050608; border-radius: 12px; }
+.vend[data-look="retro"] { --b1: #8a5d3c; --b2: #6b4630; --edge: #2a190f; --rail1: #e2c070; --rail2: #8a6a2a; --led: #ffb020; --panel: #1f5d3a; --glass: #1a1410; border-radius: 18px 18px 10px 10px; }
+.vend::after {                                      /* the machine's shadow on the floor */
+  content: ""; position: absolute; left: 3%; right: 3%; bottom: -26px; height: 40px; z-index: -1;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .7), transparent); filter: blur(5px);
+}
+.vend-top { border-radius: 16px 16px 4px 4px; background: linear-gradient(color-mix(in srgb, var(--b1) 70%, #fff), var(--rail2)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 2px 3px rgba(0, 0, 0, .4); color: #2a2114; }
+.vend[data-look="modern"] .vend-top { color: #d7d9de; }
+.vend-led { box-shadow: inset 0 2px 6px #000, 0 1px 0 rgba(255, 255, 255, .35); background: #0d0705; }
+.vend-other { background: rgba(0, 0, 0, .16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 1px 2px rgba(0, 0, 0, .4); }
+.vend-glass { position: relative; margin-top: 10px; padding: 5px; border-radius: 8px; background: #0b0806; box-shadow: inset 0 0 0 2px var(--edge), inset 0 8px 20px #000, 0 1px 0 rgba(255, 255, 255, .3); }
+.vend-glass::before {                               /* the strip light above the shelves */
+  content: ""; position: absolute; left: 14px; right: 14px; top: 7px; height: 4px; z-index: 2; border-radius: 3px; pointer-events: none;
+  background: #fff3cf; box-shadow: 0 0 20px 7px rgba(255, 220, 150, .5);
+}
+.vend-glass::after {                                /* reflections on the glass */
+  content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(112deg, transparent 26%, rgba(255, 255, 255, .09) 34%, rgba(255, 255, 255, .02) 44%, transparent 50%, transparent 72%, rgba(255, 255, 255, .05) 80%, transparent 88%);
+}
+.vend-window { margin-top: 0; padding: 20px 4px 6px; gap: 12px 0; border-radius: 5px; background: linear-gradient(color-mix(in srgb, var(--glass) 60%, #6a4a2a), var(--glass) 70%); box-shadow: none; }
+.vend-slot { position: relative; padding: 0 6px 13px; gap: 3px; }
+.vend-slot::after {                                 /* the shelf rail each row stands on */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 9px;
+  background: linear-gradient(var(--rail1), var(--rail2) 60%, var(--edge)); box-shadow: 0 4px 6px rgba(0, 0, 0, .65);
+}
+.vend-num { opacity: .75; color: var(--rail1); }
+.vend-pack { position: relative; box-shadow: 0 7px 6px -3px rgba(0, 0, 0, .8), 0 0 16px rgba(255, 220, 150, .16); }
+.vend-pack::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, .28), transparent 14%, rgba(255, 255, 255, .1) 30%, transparent 46%, transparent 86%, rgba(0, 0, 0, .3)), linear-gradient(rgba(255, 255, 255, .14), transparent 30%); }
+.vend-price { padding: 2px 5px; border-radius: 2px; background: #100d09; box-shadow: inset 0 0 0 1px var(--edge), inset 0 1px 3px #000; }
+.vend-key { position: relative; z-index: 1; height: 8px; background: linear-gradient(var(--rail1), var(--rail2)); box-shadow: 0 1px 2px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.vend-panel { background: linear-gradient(color-mix(in srgb, var(--panel) 88%, #fff), var(--panel) 45%, color-mix(in srgb, var(--panel) 78%, #000)); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .28), inset 0 -5px 12px rgba(0, 0, 0, .4), 0 1px 0 rgba(0, 0, 0, .5); color: #fbf0dc; }
+.vend-panel b { text-shadow: 0 1px 0 rgba(255, 255, 255, .3), 0 -1px 1px rgba(0, 0, 0, .55), 0 3px 6px rgba(0, 0, 0, .35); }
+.vend-tray {                                        /* the drawer the pack falls into */
+  margin-right: 70px; border: 7px solid color-mix(in srgb, var(--panel) 82%, #000); border-radius: 5px 5px 8px 8px;
+  background: linear-gradient(#040303, #1d1513); box-shadow: inset 0 10px 16px #000, 0 1px 0 rgba(255, 255, 255, .18);
+}
+.vend-tray::before { content: ""; position: absolute; left: 34%; right: 34%; top: 6px; height: 7px; border-radius: 4px; background: linear-gradient(var(--rail1), var(--rail2)); box-shadow: 0 2px 3px #000; opacity: .9; }
+.vend-coin {                                        /* coin slot and lock */
+  position: absolute; right: 22px; bottom: 22px; width: 44px; height: 58px; border-radius: 5px;
+  background: radial-gradient(circle at 50% 76%, #1a1410 0 4px, transparent 5px), linear-gradient(#151210, #151210) 50% 30% / 5px 20px no-repeat, linear-gradient(90deg, var(--rail2), var(--rail1), var(--rail2));
+  box-shadow: inset 0 0 0 2px var(--edge), 0 2px 4px rgba(0, 0, 0, .6);
+}
+/* the room's light falls on the machine too */
+.vend-room[data-scene="cafe-night"] .vend { filter: brightness(.92) sepia(.14) saturate(1.06); }
+.vend-room[data-scene="gas"] .vend { filter: brightness(.95) saturate(.94); }
+.vend-room[data-scene="cafe-morning"] .vend { filter: brightness(1.04); }
+.hb-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: hb-flicker 1.7s ease-in-out infinite alternate; }
+@keyframes hb-flicker { 0% { transform: scale(1, 1) rotate(-2deg); opacity: .95; } 40% { transform: scale(.92, 1.08) rotate(2deg); } 70% { transform: scale(1.05, .94) rotate(-1deg); opacity: .85; } 100% { transform: scale(.96, 1.06) rotate(1deg); } }
+
+@keyframes vend-fall { from { transform: translateY(-150px) rotate(0deg); } 80% { transform: translateY(4px) rotate(92deg); } to { transform: translateY(0) rotate(84deg); } }
