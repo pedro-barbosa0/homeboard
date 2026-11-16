@@ -69,6 +69,9 @@ const ICONS = {
   minus: '<path d="M5 12h14"/>',
   pin: '<path d="M9 4h6l-1 6 3 3H7l3-3z"/><path d="M12 13v7"/>',
   term: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 10 3 2-3 2M12 15h5"/>',
+  home: '<path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/>',
+  views: '<path d="M7 4h10v16l-5-4-5 4z"/>',
+  popout: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8.500h18M7 6.250h.01M10 6.250h.01"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   eye: '<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
@@ -174,7 +177,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const TYPES = {
-  note:  { label: 'Note',    menu: 'New note',           w: 280, h: 240, make: () => ({ html: '' }),  build: buildNote },
+  note:  { label: 'Note',    menu: 'New note',           w: 280, h: 240, make: () => ({ html: '', markdown: true, md: '' }), build: buildNote },
   todo:  { label: 'To-do',   menu: 'New to-do list',     w: 280, h: 300, make: () => ({ items: [] }), build: buildTodo },
   web:   { label: 'Website', menu: 'New website window', w: 560, h: 420, make: () => ({ url: '' }),   build: buildWeb },
   links: { label: 'Links',   menu: 'New quick links',    w: 330, h: 230, make: () => ({ links: [] }), build: buildLinks },
@@ -217,11 +220,12 @@ function defaultState() {
     id: uid(), name: 'Home', view: { x: 0, y: 0, z: 1 }, strings: [],
     cards: [
       { id: uid(), type: 'note', x: 72, y: 96, w: 330, h: 270, z: 1, title: 'Welcome', color: 'yellow',
-        html: '<div>This board is yours. Drag a card by its top edge, resize it from the bottom-right corner, and drag the background to move around.</div><div><br></div>'
-            + '<div>• Double-click empty space for a new note</div><div>• Ctrl + scroll to zoom</div>'
-            + '<div>• Drag the pin at the top of a card onto another card to tie a string</div>'
-            + '<div>• Drop pictures, videos or PDFs anywhere on the board</div>'
-            + '<div>• Right-click a card’s top edge for colours and more</div><div>• The button in the top-right corner changes the look</div>' },
+        markdown: true, html: '',
+        md: 'This board is yours. Drag a card by its top edge, resize it from the bottom-right corner, and drag the background to move around.\n\n'
+          + '- Double-click empty space for a new note (notes are **Markdown**)\n- Ctrl + scroll to zoom\n'
+          + '- Drag the pin at the top of a card onto another card to tie a string\n'
+          + '- Drop pictures, videos, PDFs or `.md` files anywhere on the board\n'
+          + '- Right-click a card’s top edge for colours and more\n- The button in the top-right corner changes the look' },
       { id: uid(), type: 'todo', x: 432, y: 96, w: 290, h: 270, z: 2, title: 'To-do', color: null,
         items: [item('Make this my start page'), item('Open a website window'), item('Pick a theme')] },
       { id: uid(), type: 'links', x: 752, y: 96, w: 330, h: 240, z: 3, title: 'Quick links', color: null,
@@ -275,6 +279,9 @@ function normalize(s) {
     b.icon = typeof b.icon === 'string' ? [...b.icon].slice(0, 4).join('') : '';
     b.color = COLORS[b.color] ? b.color : null;
     b.kind = b.kind === 'file' ? 'file' : 'board';
+    b.views = list(b.views).slice(0, 30).map(p => ({ id: String(p.id || uid()), name: String(p.name || 'View').slice(0, 40), cx: +p.cx || 0, cy: +p.cy || 0, z: clamp(+p.z || 1, .25, 2) }));
+    b.home = b.views.some(p => p.id === b.home) ? b.home : null;
+    b.frozen = !!b.frozen;
     b.side = !!b.side; b.collapsed = !!b.collapsed;
     b.sideHtml = cleanHTML(String(b.sideHtml || ''));
     if (b.page && typeof b.page === 'object') b.page = { url: toAddress(String(b.page.url || '')) || '', title: b.name, named: true }; else delete b.page;
@@ -285,11 +292,15 @@ function normalize(s) {
       c.h = Math.max(minH(c), +c.h || TYPES[c.type].h);
       c.title = String(c.title || TYPES[c.type].label).slice(0, 80);
       if (!COLORS[c.color]) c.color = null;
-      if (c.type === 'note') c.html = cleanHTML(String(c.html || ''));
+      if (c.type === 'note') {
+        c.html = cleanHTML(String(c.html || ''));
+        c.markdown = !!c.markdown;
+        c.md = c.markdown && typeof c.md === 'string' ? c.md.slice(0, 1000000) : '';
+      }
       if (c.veil !== 'hover' && c.veil !== 'click') delete c.veil;
       const B64 = /^[A-Za-z0-9+/=]+$/, k = c.lock;
       if (c.type === 'note' && k && typeof k === 'object' && [k.salt, k.iv, k.data].every(v => typeof v === 'string' && B64.test(v))) {
-        c.lock = { salt: k.salt, iv: k.iv, data: k.data }; c.html = '';
+        c.lock = { salt: k.salt, iv: k.iv, data: k.data }; c.html = ''; c.md = '';
       } else delete c.lock;
       if (c.type === 'todo') c.items = list(c.items).map(i => ({
         id: String(i.id || uid()), text: String(i.text || ''), done: !!i.done,
@@ -299,7 +310,7 @@ function normalize(s) {
       }));
       if (c.type === 'links') c.links = list(c.links).map(l => ({ id: String(l.id || uid()), title: String(l.title || ''), url: toAddress(String(l.url || '')), how: l.how === 'explorer' ? 'explorer' : 'tab' })).filter(l => l.url);
       if (c.type === 'files') { const p = toAddress(String(c.path || '')); c.path = p && isLocal(p) ? p.replace(/\/?$/, '/') : ''; }
-      if (c.type === 'web') c.url = toAddress(String(c.url || '')) || '';
+      if (c.type === 'web') { c.url = toAddress(String(c.url || '')) || ''; c.plain = !!c.plain; }
       if (c.type === 'term') c.cwd = typeof c.cwd === 'string' ? c.cwd.slice(0, 400) : '';
       if (c.type === 'media') {
         c.kind = ['image', 'video', 'pdf'].includes(c.kind) ? c.kind : 'image';
@@ -530,7 +541,7 @@ function syncSettingsUI() {
   $('#unblock').disabled = !canUnblock;
   if (!canUnblock) $('#unblock').checked = false;
   $('#unblock-note').textContent = !canUnblock
-    ? 'Many sites (Google, GitHub, banks…) refuse to be shown inside another page. Installing Homeboard as a browser extension lets it lift that for website windows.'
+    ? `This copy is open as a normal web page (${location.protocol === 'file:' ? 'a file' : location.host}), and browsers never let a web page show sites that refuse to be embedded (Google, GitHub, banks…). The installed Homeboard on your new tab does it by itself. Here, use the window button on a website window to open the site in its own window beside the board.`
     : embedUnblocked
       ? 'On for this tab: sites that normally refuse to be embedded will load in website windows. Their “don’t embed me” protection is removed only for frames inside this page.'
       : s.unblock ? 'Could not be switched on in this browser, so some sites may stay blank.'
@@ -665,7 +676,61 @@ function applyView() {
   canvas.style.setProperty('--gs', step + 'px');
   $('#zoom-label').textContent = Math.round(z * 100) + '%';
 }
+/* Saved views remember the middle of the screen and the zoom, so they work in any window size. */
+const viewHere = () => { const v = board().view; return { cx: (innerWidth / 2 - v.x) / v.z, cy: (innerHeight / 2 - v.y) / v.z, z: v.z }; };
+const viewOf = p => ({ x: innerWidth / 2 - p.cx * p.z, y: innerHeight / 2 - p.cy * p.z, z: p.z });
+let flying = 0;
+function goTo(to) {
+  const v = board().view, from = { ...v };
+  cancelAnimationFrame(flying);
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { Object.assign(v, to); applyView(); save(); return; }
+  const t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / 340), e = 1 - (1 - k) ** 3;
+    v.x = from.x + (to.x - from.x) * e; v.y = from.y + (to.y - from.y) * e; v.z = from.z + (to.z - from.z) * e;
+    applyView();
+    if (k < 1) flying = requestAnimationFrame(step); else save();
+  };
+  flying = requestAnimationFrame(step);
+}
+function goHome() {                                  // the start view, or everything on the board when there is none
+  const b = board(), home = b.views.find(p => p.id === b.home);
+  if (home) goTo(viewOf(home)); else fitView();
+}
+function renameView(p) {
+  const name = prompt('Name for this view', p.name);
+  if (name && name.trim()) { p.name = name.trim().slice(0, 40); save(); }
+}
+function viewsMenu(x, y) {
+  const b = board();
+  const one = p => [
+    { label: 'Go there', icon: 'arrow', action: () => goTo(viewOf(p)) },
+    { label: 'Make it the start view', checked: b.home === p.id, action() { b.home = b.home === p.id ? null : p.id; save(); } },
+    { label: 'Replace with what is on screen now', icon: 'reload', action() { Object.assign(p, viewHere()); save(); toast(`“${p.name}” now shows this.`); } },
+    { label: 'Rename…', icon: 'edit', action: () => renameView(p) },
+    { label: 'Delete', icon: 'trash', danger: true, action() { b.views.splice(b.views.indexOf(p), 1); if (b.home === p.id) b.home = null; save(); } },
+  ];
+  openMenu(x, y, [
+    { label: b.home ? 'Back to the start view' : 'Back to everything', icon: 'home', action: goHome },
+    ...b.views.map((p, i) => ({ label: `${p.name}${b.home === p.id ? '  · start' : ''}`, icon: 'views', action: () => goTo(viewOf(p)), key: i })),
+    { sep: true },
+    {
+      label: 'Save this view', icon: 'plus',
+      action() {
+        const p = { id: uid(), name: `View ${b.views.length + 1}`, ...viewHere() };
+        b.views.push(p);
+        if (!b.home) b.home = p.id;                 // the first one saved is where Home goes
+        save();
+        toast(`Saved as “${p.name}”${b.home === p.id ? ', the start view' : ''}.`, 'Rename', () => renameView(p));
+      },
+    },
+    b.views.length > 0 && { label: 'Manage views', icon: 'edit', items: b.views.map(p => ({ label: p.name, icon: 'views', items: one(p) })) },
+    { label: 'Lock the view (no moving or zooming)', checked: b.frozen, action() { b.frozen = !b.frozen; document.body.classList.toggle('view-locked', b.frozen); save(); } },
+    { info: 'Home goes to the start view; keys 1–9 go to the saved views in order.' },
+  ]);
+}
 function zoomAt(cx, cy, factor) {
+  if (board().frozen) return;
   const v = board().view;
   const z = clamp(v.z * factor, .25, 2), k = z / v.z;
   v.x = cx - (cx - v.x) * k;
@@ -680,15 +745,13 @@ function zoomStep(dir) {
 }
 function fitView() {
   const b = board(), v = b.view;
-  if (!b.cards.length) { v.x = v.y = 0; v.z = 1; applyView(); save(); return; }
+  if (!b.cards.length) { goTo({ x: 0, y: 0, z: 1 }); return; }
   const x0 = Math.min(...b.cards.map(c => c.x)), y0 = Math.min(...b.cards.map(c => c.y));
   const x1 = Math.max(...b.cards.map(c => c.x + c.w)), y1 = Math.max(...b.cards.map(c => c.y + c.h));
   const top = 68, bottom = 76, pad = 28;
   const W = innerWidth - pad * 2, H = innerHeight - top - bottom;
-  v.z = clamp(Math.min(W / (x1 - x0), H / (y1 - y0)), .25, 1);
-  v.x = pad + (W - (x1 - x0) * v.z) / 2 - x0 * v.z;
-  v.y = top + (H - (y1 - y0) * v.z) / 2 - y0 * v.z;
-  applyView(); save();
+  const z = clamp(Math.min(W / (x1 - x0), H / (y1 - y0)), .25, 1);
+  goTo({ z, x: pad + (W - (x1 - x0) * z) / 2 - x0 * z, y: top + (H - (y1 - y0) * z) / 2 - y0 * z });
 }
 
 function select(id) {
@@ -717,6 +780,7 @@ canvas.addEventListener('pointerdown', e => {
   const onBg = e.target === canvas;
   if (!((onBg && e.button === 0) || e.button === 1)) return;
   if (onBg) { select(null); document.activeElement?.blur?.(); }
+  if (board().frozen) return;
   const v = board().view, ox = e.clientX - v.x, oy = e.clientY - v.y;
   track(ev => { v.x = ev.clientX - ox; v.y = ev.clientY - oy; applyView(); }, save, 'panning');
 });
@@ -730,6 +794,7 @@ canvas.addEventListener('wheel', e => {
   }
   if (e.target.closest('.card')) return;            // let card contents scroll
   e.preventDefault();
+  if (board().frozen) return;
   const v = board().view;
   v.x -= (e.shiftKey ? e.deltaY : e.deltaX) * unit;
   v.y -= (e.shiftKey ? 0 : e.deltaY) * unit;
@@ -798,6 +863,7 @@ function buildCard(c) {
   title.addEventListener('dblclick', () => renameCard(c));
 
   TYPES[c.type].build(c, body, head, more);
+  if (c.type === 'web' && c.plain && c.url) el.classList.add('web-plain');
   if (c.veil) el.classList.add('veil', 'veil-' + c.veil);
   place(el, c);
   if (selected === c.id) el.classList.add('selected');
@@ -1000,11 +1066,22 @@ function cardItems(c) {
       { label: 'Until I point at it', checked: c.veil === 'hover', action() { c.veil = 'hover'; refreshCard(c); save(); } },
       { label: 'Until I click it', checked: c.veil === 'click', action() { c.veil = 'click'; refreshCard(c); save(); } },
     ] },
+    c.type === 'note' && !c.lock && {
+      label: 'Markdown', checked: !!c.markdown,
+      action() {
+        if (c.markdown) { c.html = cleanHTML(MD.render(c.md)); c.md = ''; c.markdown = false; }
+        else { c.md = MD.fromHtml(c.html); c.html = ''; c.markdown = true; }
+        refreshCard(c); save();
+      },
+    },
+    (c.type === 'note' || c.type === 'todo') && { label: 'Export as Markdown (.md)', icon: 'file', action: () => exportCard(c) },
     c.type === 'note' && !c.lock && { label: 'Lock with a password…', icon: 'lock', action: () => startLock(c) },
     c.type === 'note' && c.lock && opened.has(c.id) && { label: 'Lock now', icon: 'lock', action() { opened.delete(c.id); refreshCard(c); } },
     c.type === 'note' && c.lock && opened.has(c.id) && { label: 'Remove the password', icon: 'x', action() {
-      c.html = opened.get(c.id).html; delete c.lock; opened.delete(c.id); refreshCard(c); save();
+      if (c.markdown) c.md = opened.get(c.id).text; else c.html = opened.get(c.id).text;
+      delete c.lock; opened.delete(c.id); refreshCard(c); save();
     } },
+    c.type === 'web' && { label: 'Show only the website (no frame)', checked: !!c.plain, action() { c.plain = !c.plain; refreshCard(c); save(); } },
     !bare && { label: 'Rename', icon: 'edit', action: () => renameCard(c) },
     { label: 'Duplicate', icon: 'copy', action: () => duplicateCard(c) },
     ...others.map(b => ({
@@ -1041,11 +1118,11 @@ async function keyFrom(password, salt) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
-async function seal(c, key, html) {                  // (re)encrypt the note; nothing readable stays in the saved data
+async function seal(c, key, text) {                  // (re)encrypt the note; nothing readable stays in the saved data
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(html));
+  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));
   c.lock = { salt: c.lock.salt, iv: b64(iv), data: b64(data) };
-  c.html = '';
+  c.html = ''; c.md = '';
 }
 function startLock(c) {
   const body = cardEl(c.id)?.querySelector('.card-body');
@@ -1062,9 +1139,9 @@ function startLock(c) {
       if (one.value !== two.value) { msg.textContent = 'The two passwords are not the same.'; return; }
       const salt = crypto.getRandomValues(new Uint8Array(16));
       const key = await keyFrom(one.value, salt);
-      const html = c.html || '';
+      const text = (c.markdown ? c.md : c.html) || '';
       c.lock = { salt: b64(salt) };
-      await seal(c, key, html);
+      await seal(c, key, text);
       opened.delete(c.id);
       refreshCard(c); save();
     },
@@ -1086,7 +1163,8 @@ function buildNote(c, body) {
         try {
           const key = await keyFrom(pass.value, unb64(c.lock.salt));
           const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(c.lock.iv) }, key, unb64(c.lock.data));
-          opened.set(c.id, { key, html: cleanHTML(new TextDecoder().decode(plain)) });
+          const text = new TextDecoder().decode(plain);
+          opened.set(c.id, { key, text: c.markdown ? text : cleanHTML(text) });
           refreshCard(c);
           cardEl(c.id)?.querySelector('.note-text')?.focus();
         } catch { msg.textContent = 'That password does not open this note.'; pass.value = ''; pass.focus(); }
@@ -1094,14 +1172,15 @@ function buildNote(c, body) {
     }, icon('lock'), msg, pass, h('button', { class: 'btn primary', type: 'submit' }, 'Unlock')));
     return;
   }
+  if (c.markdown) { buildMdNote(c, body, open); return; }
   const ed = h('div', { class: 'note-text', contenteditable: 'true', 'data-placeholder': 'Write something…' });
-  ed.innerHTML = open ? open.html : (c.html || '');
+  ed.innerHTML = open ? open.text : (c.html || '');
   let timer = 0;
   const keep = now => {
     if (!c.lock) { c.html = ed.innerHTML; save(); return; }
-    open.html = ed.innerHTML;                         // unlocked: only the encrypted copy is saved
+    open.text = ed.innerHTML;                         // unlocked: only the encrypted copy is saved
     clearTimeout(timer);
-    timer = setTimeout(() => seal(c, open.key, open.html).then(save), now ? 0 : 400);
+    timer = setTimeout(() => seal(c, open.key, open.text).then(save), now ? 0 : 400);
   };
   ed.addEventListener('input', () => keep(false));
   ed.addEventListener('blur', () => {
@@ -1110,6 +1189,107 @@ function buildNote(c, body) {
   });
   ed.addEventListener('paste', plainPaste);
   body.append(ed);
+}
+
+/* Markdown notes: shown formatted; a click opens the text for editing, leaving the field shows it formatted again.
+   Ticking a "- [ ]" box in the formatted view ticks it in the text. */
+const MD = globalThis.HomeboardMd;
+function buildMdNote(c, body, open) {
+  const text = () => (open ? open.text : c.md || '');
+  let timer = 0;
+  const sealSoon = now => { clearTimeout(timer); timer = setTimeout(() => seal(c, open.key, open.text).then(save), now ? 0 : 400); };
+  const set = v => { if (open) { open.text = v; sealSoon(); } else { c.md = v; save(); } };
+  const view = h('div', { class: 'note-text md-view', tabindex: '0', 'data-placeholder': 'Write something…', title: 'Click to edit' });
+  const src = h('textarea', { class: 'note-text md-src', spellcheck: 'true', 'aria-label': 'Note text (Markdown)',
+    placeholder: 'Write in Markdown:  # heading   **bold**   *italic*   - list   - [ ] task   [link](https://…)   `code`' });
+  const show = () => { view.innerHTML = MD.render(text()); body.replaceChildren(view); };
+  const edit = () => { src.value = text(); body.replaceChildren(src); src.focus(); src.setSelectionRange(src.value.length, src.value.length); };
+  view.addEventListener('click', e => {
+    const box = e.target.closest('input[type="checkbox"][data-line]');
+    if (box) { set(MD.toggleTask(text(), +box.dataset.line)); show(); return; }
+    if (e.target.closest('a') || String(getSelection())) return;      // following a link, or selecting text to copy
+    edit();
+  });
+  view.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); edit(); } });
+  src.addEventListener('input', () => set(src.value));
+  src.addEventListener('blur', () => { if (open) sealSoon(true); show(); });
+  src.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.stopPropagation(); src.blur(); return; }
+    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey) {                   // indent / outdent the line
+      e.preventDefault();
+      const v = src.value, start = v.lastIndexOf('\n', src.selectionStart - 1) + 1;
+      if (e.shiftKey) { if (v.startsWith('  ', start)) src.setRangeText('', start, start + 2, 'end'); }
+      else src.setRangeText('  ', start, start, 'end');
+      set(src.value);
+      return;
+    }
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || src.selectionStart !== src.selectionEnd) return;
+    const v = src.value, at = src.selectionStart, start = v.lastIndexOf('\n', at - 1) + 1, line = v.slice(start, at);
+    const m = /^(\s*)([-*+]|(\d{1,9})([.)]))\s+(\[[ xX]\]\s+)?/.exec(line);
+    if (!m) return;                                                      // lists carry on by themselves
+    e.preventDefault();
+    if (line.trim() === m[0].trim()) src.setRangeText('', start, at, 'end');          // an empty item ends the list
+    else src.setRangeText(`\n${m[1]}${m[3] ? +m[3] + 1 + m[4] : m[2]} ${m[5] ? '[ ] ' : ''}`, at, at, 'end');
+    set(src.value);
+  });
+  if (text().trim()) show(); else body.replaceChildren(src);
+}
+
+/* ---- Markdown export ---- */
+const fileSafe = v => (String(v || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '') || 'Untitled').slice(0, 80);
+function cardMarkdown(c) {
+  if (c.type === 'note') {
+    if (c.lock) { const o = opened.get(c.id); return o ? (c.markdown ? o.text : MD.fromHtml(o.text)) : null; }
+    return c.markdown ? c.md || '' : MD.fromHtml(c.html);
+  }
+  if (c.type === 'todo') {
+    const out = [];
+    for (const i of c.items) {
+      out.push(`- [${i.done ? 'x' : ' '}] ${i.text}${i.star ? ' ⭐' : ''}${i.due ? ` (due ${i.due})` : ''}`);
+      for (const t of i.steps) out.push(`    - [${t.done ? 'x' : ' '}] ${t.text}`);
+      if (i.link) out.push(`    - ${addressLabel(i.link)}`);
+      if (i.note) out.push(...i.note.split('\n').map(l => '    > ' + l));
+    }
+    return out.join('\n');
+  }
+  return null;
+}
+function download(name, blob) {
+  const a = h('a', { href: URL.createObjectURL(blob), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function exportCard(c) {
+  const text = cardMarkdown(c);
+  if (text == null) { toast('Unlock the note first to export it.'); return; }
+  download(fileSafe(c.title) + '.md', new Blob([text], { type: 'text/markdown;charset=utf-8' }));
+}
+/* A board (with the boards inside it) or everything, as a .zip of .md files in board folders.
+   Strings between cards become [[links]], as in Obsidian. Locked notes are never exported in bulk. */
+function exportNotes(rootId) {
+  const files = [], taken = new Set();
+  let skipped = 0;
+  const folder = b => { const parts = []; for (let p = b, n = 0; p && n < 50; p = boardById(p.parent), n++) parts.unshift(fileSafe(p.name)); return parts.join('/'); };
+  for (const b of state.boards.filter(o => !rootId || isUnder(o, rootId))) {
+    const dir = folder(b), names = new Map();
+    const unique = base => { let n = base, k = 2; while (taken.has(`${dir}/${n}`.toLowerCase())) n = `${base} (${k++})`; taken.add(`${dir}/${n}`.toLowerCase()); return n; };
+    for (const c of b.cards) {
+      if (c.type !== 'note' && c.type !== 'todo') continue;
+      if (c.lock) { skipped++; continue; }
+      names.set(c.id, unique(fileSafe(c.title)));
+    }
+    for (const c of b.cards) {
+      if (!names.has(c.id)) continue;
+      let text = cardMarkdown(c);
+      const ties = b.strings.filter(t => t.from === c.id || t.to === c.id).map(t => names.get(t.from === c.id ? t.to : t.from)).filter(Boolean);
+      if (ties.length) text += `\n\n---\nLinked: ${ties.map(n => `[[${n}]]`).join(', ')}\n`;
+      files.push({ name: `${dir}/${names.get(c.id)}.md`, text });
+    }
+    if (b.side && b.sideHtml && MD.fromHtml(b.sideHtml).trim()) files.push({ name: `${dir}/${unique('Board notes')}.md`, text: MD.fromHtml(b.sideHtml) });
+  }
+  if (!files.length) { toast(skipped ? 'Only locked notes here, and those are never exported together.' : 'There are no notes or to-do lists to export.'); return; }
+  download(`${rootId ? fileSafe(boardById(rootId).name) : 'homeboard-notes'}-${dayStamp()}.zip`, MD.zip(files));
+  toast(`${files.length} Markdown file${files.length > 1 ? 's' : ''} exported${skipped ? `; ${skipped} locked note${skipped > 1 ? 's' : ''} left out` : ''}.`);
 }
 
 /* ---- to-do ---- */
@@ -1504,6 +1684,11 @@ function buildFiles(c, body) {
   };
   async function viewer(row, big) {
     const kind = fileKind(row.name);
+    if (kind === 'text' && /\.(md|markdown)$/i.test(row.name)) {
+      const md = h('div', { class: 'md-view files-md' });
+      md.innerHTML = MD.render(await textOf(row).catch(() => 'This file could not be read.'));
+      return md;
+    }
     if (kind === 'text') return h('pre', { class: 'files-text' }, await textOf(row).catch(() => 'This file could not be read.'));
     const url = await urlOf(row);
     if (kind === 'image') return h('img', { src: url, alt: row.name, draggable: 'false' });
@@ -1744,7 +1929,15 @@ function buildTerm(c, body, head, more) {
 
 /* ---- website window ---- */
 const whenOnline = new Set();                        // website windows waiting for the connection to return
-const EMBED_HINT = 'If a window stays blank, that site refuses to be shown inside other pages. Installing Homeboard as a browser extension lifts that for most sites.';
+const EMBED_HINT = 'If this window stays blank, the site refuses to be shown inside other pages. The window button opens it in its own window beside the board. (The installed Homeboard shows most of these sites right here.)';
+/* A site that will not sit inside the board: give it a real browser window, placed where the card is. */
+function openBeside(url, el) {
+  if (!url) return;
+  const r = el.getBoundingClientRect(), chromeTop = Math.max(0, outerHeight - innerHeight), side = Math.max(0, (outerWidth - innerWidth) / 2);
+  const box = { left: Math.round(screenX + side + r.left), top: Math.round(screenY + chromeTop + r.top), width: Math.max(420, Math.round(r.width)), height: Math.max(320, Math.round(r.height)) };
+  if (api?.windows?.create) api.windows.create({ url, type: 'popup', ...box }).catch(() => openExternal(url));
+  else if (!window.open(url, 'hb-' + hostOf(url), `popup,left=${box.left},top=${box.top},width=${box.width},height=${box.height}`)) openExternal(url);
+}
 const localHint = () => (api?.extension?.isAllowedFileSchemeAccess
   ? 'To show folders and files from this computer, open the browser’s Extensions page, choose Details on Homeboard, switch on “Allow access to file URLs”, then reload this page.'
   : 'Folders and files from this computer can only be shown when Homeboard is installed as the browser extension, or opened directly as a file.');
@@ -1825,8 +2018,24 @@ function buildWeb(c, body) {
         allow: 'fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write',
         referrerpolicy: 'strict-origin-when-cross-origin',
       }),
-      h('div', { class: 'web-shield', title: 'Click to use this page' }));
+      shield());
   };
+  /* With "only the website", the page itself is the card: drag it to move it until you click into it,
+     then a thin strip along its top edge moves it; right-click either for the card menu. */
+  const card = () => body.parentElement;
+  const menuHere = e => { if (!card()?.classList.contains('card')) return; e.preventDefault(); e.stopPropagation(); cardMenu(c, e.clientX, e.clientY); };
+  const shield = () => {
+    const el = h('div', { class: 'web-shield', title: c.plain ? 'Click to use this page · drag to move it' : 'Click to use this page' });
+    el.addEventListener('pointerdown', e => { if (c.plain && e.button === 0 && card()?.classList.contains('card')) dragCard(e, c, card(), 'move'); });
+    el.addEventListener('contextmenu', e => { if (c.plain) menuHere(e); });
+    return el;
+  };
+  if (c.plain && c.url) {
+    const grab = h('div', { class: 'web-grab', title: 'Drag to move · right-click for options' });
+    grab.addEventListener('pointerdown', e => { if (e.button === 0 && card()?.classList.contains('card')) { e.preventDefault(); dragCard(e, c, card(), 'move'); } });
+    grab.addEventListener('contextmenu', menuHere);
+    body.append(grab);
+  }
   const go = () => {
     const v = url.value.trim();
     // plain words are searched: with the site this window last used, else the engine chosen in Customize
@@ -1840,6 +2049,8 @@ function buildWeb(c, body) {
   body.append(h('div', { class: 'web-bar' }, url,
     !embedUnblocked && h('button', { class: 'icon-btn', type: 'button', title: EMBED_HINT, 'aria-label': 'About blank windows', onclick: () => toast(EMBED_HINT) }, icon('info')),
     h('button', { class: 'icon-btn', type: 'button', title: 'Reload (back to this address)', 'aria-label': 'Reload', onclick: load }, icon('reload')),
+    h('button', { class: 'icon-btn', type: 'button', title: 'Open in its own window, beside the board (for sites that refuse to show here)', 'aria-label': 'Open in its own window',
+      onclick: () => openBeside(c.url, frame) }, icon('popout')),
     h('button', { class: 'icon-btn', type: 'button', title: 'Open in a new tab', 'aria-label': 'Open in a new tab',
       onclick: () => openExternal(c.url) }, icon('external'))),
     frame);
@@ -1922,6 +2133,13 @@ function mediaBox(size, at, n = 0) {
 async function addMediaFiles(files, at) {
   let n = 0;
   for (const f of files) {
+    if (/\.(md|markdown|txt)$/i.test(f.name || '') || /^text\/(markdown|plain)/.test(f.type || '')) {   // text files become notes
+      if (f.size > 2e6) { toast(`“${f.name}” is too big to become a note.`); continue; }
+      addCard('note', at && { x: at.x - 180 + n * 26, y: at.y - 40 + n * 26 },
+        { markdown: true, md: await f.text(), title: (f.name || 'Note').replace(/\.[^.]+$/, '').slice(0, 80) || 'Note', named: true, w: 360, h: 320 });
+      n++;
+      continue;
+    }
     const kind = kindOf(f.type || '');
     if (!kind) continue;
     const id = uid();
@@ -1936,7 +2154,7 @@ async function addMediaFiles(files, at) {
     }
     n++;
   }
-  if (!n && files.length) toast('Only images, videos and PDFs can be placed on the board.');
+  if (!n && files.length) toast('Only pictures, videos, PDFs and text or Markdown files can be placed on the board.');
 }
 function addRemoteImage(src, at, link) {
   const im = new Image();
@@ -2053,6 +2271,7 @@ function pointerSpot() {
 }
 function cardText(c) {
   if (c.type === 'note' && c.lock) return 'Locked note';
+  if (c.type === 'note' && c.markdown) return c.md || '';
   if (c.type === 'note') {
     const d = document.createElement('div');
     d.innerHTML = cleanHTML(c.html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p|li|h\d)>/gi, '\n');
@@ -2110,7 +2329,7 @@ function onPaste(e) {
   if (!t) return;
   const address = !/\n/.test(t) && (/^https?:\/\/\S+$/i.test(t) || /^[a-z]:[\\/]/i.test(t) || t.startsWith('\\\\')) ? toAddress(t) : null;
   if (address) addCard('web', pointerSpot(), { url: address, title: titleOf(address) });
-  else addCard('note', pointerSpot(), { html: textToHtml(text) });
+  else addCard('note', pointerSpot(), { markdown: true, md: text });
 }
 function onDrop(e) {
   if (e.dataTransfer.types.includes(FILES_DND)) return;                          // a file dragged between file browsers
@@ -2125,7 +2344,7 @@ function onDrop(e) {
   if (img) addRemoteImage(img, at, link);
   else if (link && /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(new URL(link).pathname)) addRemoteImage(link, at, link);
   else if (link) addCard('web', at, { url: link, title: titleOf(link) });
-  else if (text) addCard('note', at, { html: textToHtml(text) });
+  else if (text) addCard('note', at, { markdown: true, md: text });
 }
 
 /* ------------------------------------------------------------------ *
@@ -2141,6 +2360,7 @@ const initials = name => { const w = name.trim().split(/\s+/); return ((w.length
 function renderBoard() {
   const b = board();
   opened.clear();                                   // leaving a board locks its notes again
+  document.body.classList.toggle('view-locked', !!b.frozen);
   whenOnline.clear();
   applySettings();
   if (!panel.hidden) syncSettingsUI();
@@ -2242,6 +2462,7 @@ function boardMenu(b, x, y) {
       { label: 'Same as everywhere', checked: !b.look, action() { b.look = null; applySettings(); syncSettingsUI(); save(); } },
       ...state.looks.map(l => ({ label: l.name, checked: b.look === l.id, action() { b.look = l.id; applySettings(); syncSettingsUI(); save(); } })),
     ] },
+    { label: 'Export notes as Markdown (.zip)', icon: 'file', action: () => exportNotes(b.id) },
     { label: 'Notes panel on the side', checked: !!b.side, action() { b.side = !b.side; state.active = b.id; again(); if (b.side) sideText.focus(); } },
     { sep: true },
     state.boards.some(o => !isUnder(o, b.id)) && { label: kidsOf(b.id).length ? 'Delete board and those inside' : 'Delete board', icon: 'trash', danger: true, action: () => deleteBoard(b) },
@@ -2322,6 +2543,7 @@ function dropUnblock() {
  *  Wiring
  * ------------------------------------------------------------------ */
 function wire() {
+  $('#export-md').addEventListener('click', () => exportNotes(null));
   $('#undo-update').addEventListener('click', undoUpdate);
   document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.add === 'media') pickMedia();
@@ -2356,6 +2578,8 @@ function wire() {
   $('#zoom-in').addEventListener('click', () => zoomStep(1));
   $('#zoom-out').addEventListener('click', () => zoomStep(-1));
   $('#zoom-fit').addEventListener('click', fitView);
+  $('#zoom-views').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); viewsMenu(r.left, r.top - 300); });
+  $('#zoom-views').addEventListener('contextmenu', e => { e.preventDefault(); goHome(); });
   $('#zoom-label').addEventListener('click', () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / board().view.z));
 
   $('#search').addEventListener('submit', e => {
@@ -2519,6 +2743,8 @@ function wire() {
       const c = board().cards.find(k => k.id === selected);
       if (c) removeCard(c);
     } else if (e.key === '/') { e.preventDefault(); searchInput.focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); goHome(); }
+    else if (/^Digit[1-9]$/.test(e.code) && !e.shiftKey) { const p = board().views[+e.code.slice(5) - 1]; if (p) { e.preventDefault(); goTo(viewOf(p)); } }
   });
 
   // persistence across tabs and page lifetime

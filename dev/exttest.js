@@ -98,7 +98,8 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     await send('Input.insertText', { text: ' HELLO-NOTE' }, sid);
     await sleep(500);
     s = await stored(sid);
-    ok('note text saved', s.boards[0].cards.find(c => c.type === 'note').html.includes('HELLO-NOTE'));
+    const firstNote = s.boards[0].cards.find(c => c.type === 'note');
+    ok('note text saved', ((firstNote.markdown ? firstNote.md : firstNote.html) || '').includes('HELLO-NOTE'));
 
     // drag a card by its header; string follows
     const before = s.boards[0].cards.find(c => c.type === 'links');
@@ -257,8 +258,10 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     const notesBefore = await count('.card-note');
     await paste('pasted line one\nline two');
     ok('pasting plain text on the board makes a note', await count('.card-note') === notesBefore + 1 && await ev(m.sid, `[...document.querySelectorAll('.note-text')].some(n => n.textContent.includes('pasted line one'))`));
-    await ev(m.sid, `(() => { const n = document.querySelector('.note-text'); n.focus(); const dt = new DataTransfer(); dt.setData('text/plain', 'INTO-NOTE'); n.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); })()`);
-    ok('pasting while typing in a note goes into that note', await count('.card-note') === notesBefore + 1 && await ev(m.sid, `document.querySelector('.note-text').textContent.includes('INTO-NOTE')`));
+    await ev(m.sid, `(() => { document.querySelector('.card-note .note-text').click(); const n = document.activeElement; const dt = new DataTransfer(); dt.setData('text/plain', 'INTO-NOTE'); n.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); return n.tagName; })()`);
+    await send('Input.insertText', { text: 'INTO-NOTE' }, m.sid);
+    await sleep(600);
+    ok('pasting while typing in a note goes into that note', await count('.card-note') === notesBefore + 1 && await ev(m.sid, `document.activeElement.value.includes('INTO-NOTE')`));
 
     // local folder in a website window
     const allowed = await ev(m.sid, `chrome.extension.isAllowedFileSchemeAccess()`);
@@ -551,6 +554,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     const card = `.card[data-id="${noteId}"]`;
     const noteData = async () => (await firstBoard()).cards.find(c => c.id === noteId);
     await rightClick(card + ' .card-head'); await choose('Hide the contents'); await choose('Until I point at it');
+    await mouse(m.sid, 'mouseMoved', 5, 300, { button: 'none', buttons: 0 });   // the pointer must not rest on the card, or it shows
     await sleep(500);
     ok('a card can hide its contents until pointed at', (await noteData()).veil === 'hover' && await ev(m.sid, `document.querySelector(${JSON.stringify(card)}).classList.contains('veil-hover') && getComputedStyle(document.querySelector(${JSON.stringify(card + ' .card-body')})).filter.startsWith('blur')`));
 

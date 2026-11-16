@@ -118,13 +118,19 @@ until you point at it, or until you click it. Notes also have "Lock with a
 password…": the text is then saved encrypted and asks for the password each
 time the board is opened. A forgotten password cannot be recovered.
 
+**Notes are Markdown.** Write `# heading`, `**bold**`, `*italic*`, `- list`, `- [ ] task`, `[link](https://…)`, tables and code; leaving the note shows it formatted, a click opens the text again, and ticking a task box in the formatted view ticks it in the text. Enter carries a list on (an empty item ends it), Tab / Shift+Tab indent. Older notes: right-click → **Markdown** converts them. Drop `.md` or `.txt` files on the board to make notes of them; the file browser shows `.md` files formatted.
+
+**Export** — right-click a note or to-do list → **Export as Markdown (.md)**; right-click a board → **Export notes as Markdown (.zip)** (that board and the boards inside it); Customize → Your data → **Export notes as Markdown** (everything). The zip has a folder per board; strings between cards become `[[links]]` as in Obsidian. Locked notes are never exported in bulk.
+
+**Saved views** — the bookmark button next to the zoom: **Save this view**, jump to saved views, **Back to the start view** (also the **Home** key, or right-click the bookmark button), make any view the start view, and **Lock the view** so the board cannot be moved or zoomed by accident. Keys **1–9** jump to saved views in order. Each board keeps its own.
+
 **To-do lists** — the small arrow on a task opens its details: steps, notes, a
 link to open later, a due date and a star.
 
 **Links** — an address can be a website or a folder/file on this computer; for
 those you choose "Open in a browser tab" or "Open in File Explorer".
 
-**Website windows** — type an address, a `.pdf` link, a folder such as
+**Website windows** — right-click its top edge → **Show only the website (no frame)** hides the title and address bar: drag the site to move it until you click into it, then the thin strip along its top edge moves it and opens the menu. The window button opens a site in its own window beside the board, for sites that will not show inside it. Type an address, a `.pdf` link, a folder such as
 `C:\Users\you\Downloads\`, or just words to search. An empty window offers
 Google, Wikipedia, YouTube, YouTube Music, Bing, DuckDuckGo and Maps: click one
 to open it, or type first and click to search that site.
@@ -193,6 +199,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | File | What it is |
 | --- | --- |
 | `index.html`, `style.css`, `app.js` | The board: cards, boards, menus, themes, storage |
+| `markdown.js` | Markdown rendering, HTML-to-Markdown, and the zip writer for exports |
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
 | `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle |
 | `extras.css` | Looks list, hidden/locked cards, cue rack and tobacco machine |
@@ -203,6 +210,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/notestest.js` | Checks Markdown notes, export, dropped .md files, saved views and frameless website windows |
 | `dev/updatetest.js` | Checks install, live update, the pre-update copy, undo and rollback in throwaway folders |
 
 New widgets register themselves as `HomeboardWidgets[id] = { label, menu, w, h,

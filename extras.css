@@ -1,5 +1,55 @@
 /* Looks list, hidden and locked cards, and the immersive pickers (cue rack, tobacco machine). */
 
+/* ---------- Markdown notes ---------- */
+.note-text.md-src {
+  width: 100%; height: 100%; resize: none; border: 0; margin: 0; background: transparent; color: inherit;
+  font: inherit; line-height: 1.55; tab-size: 2;
+}
+.note-text.md-src::placeholder { color: var(--muted); }
+.md-view > :first-child { margin-top: 0; }
+.md-view > :last-child { margin-bottom: 0; }
+.md-view p { margin: 0 0 .6em; }
+.md-view h1, .md-view h2, .md-view h3, .md-view h4, .md-view h5, .md-view h6 { margin: .7em 0 .35em; line-height: 1.25; }
+.md-view h1 { font-size: 1.45em; } .md-view h2 { font-size: 1.25em; } .md-view h3 { font-size: 1.1em; }
+.md-view h4, .md-view h5, .md-view h6 { font-size: 1em; color: var(--muted); }
+.md-view ul, .md-view ol { margin: 0 0 .6em; padding-left: 1.35em; }
+.md-view li { margin: .12em 0; }
+.md-view li > ul, .md-view li > ol { margin: .1em 0 0; }
+.md-view li.task { list-style: none; margin-left: -1.25em; }
+.md-view li.task > input { width: 14px; height: 14px; margin: 0 6px 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
+.md-view li.task:has(> input:checked) { color: var(--muted); text-decoration: line-through; }
+.md-view code { padding: 1px 5px; border-radius: 4px; font: .9em "Cascadia Mono", Consolas, ui-monospace, monospace; background: color-mix(in srgb, var(--text) 10%, transparent); }
+.md-view pre { margin: 0 0 .7em; padding: 8px 10px; border-radius: var(--r-in); overflow: auto; background: color-mix(in srgb, #000 30%, transparent); }
+.md-view pre code { padding: 0; background: none; font-size: .86em; }
+.md-view blockquote { margin: 0 0 .6em; padding: 2px 0 2px 12px; border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); color: var(--muted); }
+.md-view hr { border: 0; border-top: 1px solid var(--border); margin: .8em 0; }
+.md-view mark { background: color-mix(in srgb, #f5c84c 45%, transparent); color: inherit; border-radius: 2px; padding: 0 2px; }
+.md-view img { max-width: 100%; border-radius: var(--r-in); }
+.md-view table { border-collapse: collapse; margin: 0 0 .7em; font-size: .94em; }
+.md-view th, .md-view td { border: 1px solid var(--border); padding: 4px 8px; }
+.md-view th { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.md-view a { color: var(--accent); }
+.files-md { position: absolute; inset: 0; overflow: auto; padding: 10px 14px; align-self: stretch; line-height: 1.55; }
+
+/* ---------- website windows that show only the site ---------- */
+.card.web-plain { border-color: transparent; background: transparent; }
+.card.web-plain .card-head, .card.web-plain .web-bar { display: none; }
+.card.web-plain .card-body { border-radius: calc(var(--radius) - 1px); }
+.card.web-plain .web-frame { border-top: 0; }
+.card.web-plain.selected { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.card.web-plain .web-shield { cursor: grab; }
+.web-grab {
+  position: absolute; left: 0; right: 0; top: 0; height: 16px; z-index: 4; cursor: grab; opacity: 0; transition: opacity .15s;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; background: linear-gradient(rgba(0, 0, 0, .5), transparent);
+}
+.web-grab::after { content: ""; position: absolute; left: 50%; top: 5px; width: 34px; height: 4px; margin-left: -17px; border-radius: 2px; background: rgba(255, 255, 255, .85); }
+.card.web-plain:hover .web-grab, body.dragging .web-grab { opacity: 1; }
+
+/* ---------- a locked view ---------- */
+body.view-locked #canvas { cursor: default; }
+body.view-locked #zoom-views { color: var(--accent); }
+body.view-locked #zoom-in, body.view-locked #zoom-out, body.view-locked #zoom-label { opacity: .35; pointer-events: none; }
+
 /* ---------- the add bar: out of sight until the mouse nears the bottom edge ---------- */
 #dock { transition: transform .2s ease, opacity .2s ease; }
 body.dock-hide #dock { transform: translate(-50%, calc(100% + 26px)); opacity: 0; }
