@@ -89,6 +89,7 @@ terminal programs are not supported). A backup is written once a day to
 | The + on a row, or "New board" | Add a board inside another, or at the top level |
 | Double-click a name (or F2) | Rename |
 | Right-click a board | Icon, colour, move up/down/inside, delete, and: |
+| …"Copy board", "Duplicate board", "Paste board inside / after this one" | Copy a board with the boards inside it (also **Ctrl+C** / **Ctrl+D** on a focused board row). **Ctrl+V** on the board pastes a copied board, even one copied in another Homeboard |
 | …"Show a page, PDF or folder instead of cards" | Make the board one full page |
 | …"Notes panel on the side" | Keep a notes column for that board |
 
@@ -105,6 +106,7 @@ terminal programs are not supported). A backup is written once a day to
 | Ctrl+V on empty board | Text → note; address or folder path → website window; screenshot → picture |
 | Drop pictures, videos or PDFs on the board | Decorate; right-click → "Keep behind other cards" |
 | Drag the background, scroll, Ctrl + scroll | Pan and zoom |
+| **Ctrl+Z** / **Ctrl+Y** (or Ctrl+Shift+Z) | Undo / redo anything on the boards: moving, resizing, deleting, adding, renaming, boards, looks. Inside a note or field, they undo the typing as usual |
 | `/` · `Delete` | Jump to the search box · remove the selected card (Undo appears) |
 
 **Looks** — in Customize, "Save what you see as a new look" keeps the current
@@ -144,6 +146,7 @@ and **right-click for all options**.
 
 | Widget | Notes |
 | --- | --- |
+| YouTube Music | Shows what YouTube Music is playing — artwork, title, artist, progress — and controls it: previous, play/pause, next, jump (click the bar), volume (slider, or scroll over the controls), like. Works with YouTube Music open anywhere in Edge: a normal or pinned tab, or a website window on a board. Right-click: go to the player, open YouTube Music in a pinned tab, pick a player when several are open, three looks. Needs the installed extension. |
 | Sound visualiser | Click it to start or stop. Right-click → "Listen to": this computer's sound (the browser asks what to share each time — pick "Entire screen" or a tab and tick the audio box), or a microphone-type input (allowed once, then it starts by itself). Four shapes, four colourings. |
 | Clock | 8 looks (right-click → Change clock), seconds, date, 24-hour |
 | 8-ball pool | You vs the computer or 2 players. Aim with the mouse, hold and pull back for power, scroll for top/back spin. "Choose a cue" opens a cue rack; "Change table" lists the tables. Grab the wooden rail to move it. |
@@ -201,7 +204,8 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `index.html`, `style.css`, `app.js` | The board: cards, boards, menus, themes, storage |
 | `markdown.js` | Markdown rendering, HTML-to-Markdown, and the zip writer for exports |
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
-| `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle |
+| `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle, sound visualiser, YouTube Music styles |
+| `widgets-music.js`, `ytm.js` | The YouTube Music widget, and the small script Homeboard runs inside YouTube Music pages to read and control the player |
 | `extras.css` | Looks list, hidden/locked cards, cue rack and tobacco machine |
 | `manifest.json`, `background.js` | The extension wrapper |
 | `tools/install.ps1`, `tools/rollback.ps1` | Install or update the daily copy; go back one version |
@@ -210,6 +214,8 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/boardstest.js` | Checks undo/redo and copying, pasting and duplicating boards |
+| `dev/musictest.js` | Checks the YouTube Music widget against the real site (needs the internet; skips steps the test browser cannot play) |
 | `dev/notestest.js` | Checks Markdown notes, export, dropped .md files, saved views and frameless website windows |
 | `dev/updatetest.js` | Checks install, live update, the pre-update copy, undo and rollback in throwaway folders |
 

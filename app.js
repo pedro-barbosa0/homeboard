@@ -345,7 +345,51 @@ function save() {
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 250);
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(remember, 500);             // a pause after a change makes it one undo step
 }
+
+/* Undo and redo keep whole-board snapshots. Moving around (the view) and switching boards are not steps,
+   and a big background picture is left out so the history stays small. */
+const undo = { past: [], future: [], now: null };
+let undoTimer = 0;
+function snapshot() {
+  const o = { ...state, settings: { ...state.settings, bgImage: '' }, boards: state.boards.map(b => ({ ...b, view: null })) };
+  for (const k of ['rev', 'writer', 'seenVersion', 'lastBackup', 'active']) delete o[k];
+  return JSON.stringify(o);
+}
+function remember() {
+  clearTimeout(undoTimer);
+  if (!state) return;
+  const now = snapshot();
+  if (now === undo.now) return;
+  if (undo.now != null) {
+    undo.past.push(undo.now);
+    let size = undo.past.reduce((n, x) => n + x.length, 0);
+    while (undo.past.length > 80 || (size > 40e6 && undo.past.length > 1)) size -= undo.past.shift().length;
+  }
+  undo.now = now;
+  undo.future = [];
+}
+function travel(from, to, label, back) {
+  remember();
+  if (!from.length) { toast(label === 'Undone' ? 'Nothing to undo.' : 'Nothing to redo.'); return; }
+  const before = state, target = JSON.parse(from.pop());
+  to.push(undo.now);
+  for (const b of target.boards) b.view = (before.boards.find(o => o.id === b.id) || {}).view || { x: 0, y: 0, z: 1 };
+  Object.assign(target, { seenVersion: before.seenVersion, lastBackup: before.lastBackup });
+  target.settings.bgImage = before.settings.bgImage;
+  // show the board that changed
+  const changed = target.boards.find(b => JSON.stringify({ ...b, view: 0 }) !== JSON.stringify({ ...(before.boards.find(o => o.id === b.id) || {}), view: 0 }));
+  target.active = (changed || target.boards.find(b => b.id === before.active) || target.boards[0]).id;
+  state = normalize(target) || before;
+  undo.now = snapshot();
+  applySettings(); if (!panel.hidden) syncSettingsUI(); renderTabs(); renderBoard();
+  dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250);
+  toast(`${label}.`, back, () => (back === 'Redo' ? redoStep() : undoStep()));
+}
+const undoStep = () => travel(undo.past, undo.future, 'Undone', 'Redo');
+const redoStep = () => travel(undo.future, undo.past, 'Redone', 'Undo');
 async function flush() {
   if (!dirty) return;
   dirty = false;
@@ -372,6 +416,7 @@ function adopt(next) {
   const n = normalize(next);
   if (!n) return;
   state = n;
+  undo.past = []; undo.future = []; undo.now = snapshot();   // another tab changed things: start the history afresh
   applySettings(); syncSettingsUI(); renderTabs(); renderBoard();
 }
 
@@ -1554,10 +1599,10 @@ const helper = {
   },
   async call(what, body) {
     const key = await this.key();
-    if (!key) throw new Error(HELPER_HINT);
+    if (!key) throw new Error(helperHint());
     let r;
     try { r = await fetch(this.base + what, { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
-    catch { this.up = false; throw new Error(HELPER_HINT); }
+    catch { this.up = false; throw new Error(helperHint()); }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'The helper could not do that.');
     return j;
@@ -1569,7 +1614,10 @@ const helper = {
     return this.up;
   },
 };
-const HELPER_HINT = 'This needs the Homeboard helper. In the Homeboard folder, right-click tools\\start-helper.ps1 and choose “Run with PowerShell”.';
+let installedAt = '';                               // the folder this copy runs from (written there by tools\\install.ps1)
+fetch('install-path.txt', { cache: 'no-store' }).then(r => (r.ok ? r.text() : '')).then(t => { installedAt = t.trim(); }, () => {});
+const helperFolder = () => (installedAt || 'the Homeboard folder') + '\\tools';
+const helperHint = () => `This needs the Homeboard helper, a small program on this computer that lets Homeboard move files, run a console and keep daily backups. Start it once: open ${helperFolder()}, right-click start-helper.ps1 and choose “Run with PowerShell”. To have it start with Windows, do the same with install-helper-startup.ps1.`;
 const FILES_DND = 'application/x-homeboard-files';
 let fileClip = null;                                 // { paths, cut } from Copy / Cut in a file browser
 async function backupText() {                        // the whole board as one file, pictures and PDFs included (not the very large ones)
@@ -1875,8 +1923,10 @@ function buildTerm(c, body, head, more) {
   async function start() {
     out.replaceChildren();
     if (!(await helper.ready(true))) {
-      print(HELPER_HINT + '\n', 'err');
-      out.append(h('button', { class: 'btn', type: 'button', onclick: start }, 'Try again'));
+      print(helperHint() + '\n', 'err');
+      out.append(h('div', { class: 'btn-row' },
+        installedAt && h('button', { class: 'btn', type: 'button', onclick() { navigator.clipboard.writeText(helperFolder()).then(() => toast('Folder path copied: paste it into File Explorer’s address bar.'), () => {}); } }, 'Copy the folder path'),
+        h('button', { class: 'btn', type: 'button', onclick: start }, 'Try again')));
       return;
     }
     try { id = (await helper.call('/term/start', { cwd: c.cwd })).id; } catch (e) { print(e.message + '\n', 'err'); return; }
@@ -2321,6 +2371,9 @@ function onPaste(e) {
   if (files.length && (!editing || !text)) { e.preventDefault(); addMediaFiles(files, pointerSpot()); return; }
   if (editing) return;                               // typing somewhere: normal paste
   e.preventDefault();
+  let pack = null;                                   // a copied board?
+  try { const j = JSON.parse(text); if (j && j.homeboard === 'boards') pack = j; } catch { /* plain text */ }
+  if (pack && pasteBoards(pack, board().parent, board().id)) return;
   let card = null;
   try { card = JSON.parse(cd.getData(CLIP_TYPE) || 'null'); } catch { /* not ours */ }
   if (!card && clip && text === clip.text) card = clip.card;
@@ -2416,6 +2469,8 @@ function renderTabs() {
         if (editing()) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBoard(b); }
         else if (e.key === 'F2') renameBoard(b);
+        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { e.preventDefault(); copyBoard(b); }
+        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateBoard(b); }
       });
       t.addEventListener('dblclick', () => renameBoard(b));
       t.addEventListener('contextmenu', e => { if (editing()) return; e.preventDefault(); boardMenu(b, e.clientX, e.clientY); });
@@ -2462,12 +2517,51 @@ function boardMenu(b, x, y) {
       { label: 'Same as everywhere', checked: !b.look, action() { b.look = null; applySettings(); syncSettingsUI(); save(); } },
       ...state.looks.map(l => ({ label: l.name, checked: b.look === l.id, action() { b.look = l.id; applySettings(); syncSettingsUI(); save(); } })),
     ] },
+    { label: 'Copy board', icon: 'copy', action: () => copyBoard(b) },
+    { label: 'Duplicate board', icon: 'copy', action: () => duplicateBoard(b) },
+    boardClip && { label: 'Paste board inside', icon: 'plus', action: () => pasteBoards(boardClip, b.id, null) },
+    boardClip && { label: 'Paste board after this one', icon: 'arrow', action: () => pasteBoards(boardClip, b.parent, b.id) },
+    { sep: true },
     { label: 'Export notes as Markdown (.zip)', icon: 'file', action: () => exportNotes(b.id) },
     { label: 'Notes panel on the side', checked: !!b.side, action() { b.side = !b.side; state.active = b.id; again(); if (b.side) sideText.focus(); } },
     { sep: true },
     state.boards.some(o => !isUnder(o, b.id)) && { label: kidsOf(b.id).length ? 'Delete board and those inside' : 'Delete board', icon: 'trash', danger: true, action: () => deleteBoard(b) },
   ]);
 }
+
+/* A board travels with the boards inside it, as JSON on the clipboard, so it can also be pasted into
+   another copy of Homeboard. Pasted boards get new ids; strings, views and the start view follow. */
+let boardClip = null;
+const subtree = b => state.boards.filter(o => isUnder(o, b.id));
+function copyBoard(b, quiet) {
+  boardClip = { homeboard: 'boards', v: 1, root: b.id, boards: structuredClone(subtree(b)) };
+  try { navigator.clipboard?.writeText(JSON.stringify(boardClip)).catch(() => {}); } catch { /* the board's own copy is enough here */ }
+  if (!quiet) toast(`Board “${b.name}” copied${subtree(b).length > 1 ? ' with the boards inside it' : ''}. Ctrl+V pastes it.`);
+}
+function pasteBoards(pack, parentId, afterId) {
+  if (!pack || pack.homeboard !== 'boards' || !Array.isArray(pack.boards) || !pack.boards.some(o => o && o.id === pack.root)) return false;
+  const ids = new Map(pack.boards.map(o => [o.id, uid()]));
+  const out = pack.boards.map(o => {
+    const n = structuredClone(o), cards = new Map(), views = new Map();
+    n.id = ids.get(o.id);
+    n.parent = o.id === pack.root ? parentId || null : ids.get(o.parent) || null;
+    n.cards = (Array.isArray(n.cards) ? n.cards : []).map(c => { const k = { ...c, id: uid() }; cards.set(c.id, k.id); for (const it of [...(k.items || []), ...(k.links || [])]) if (it && typeof it === 'object') it.id = uid(); return k; });
+    n.strings = (Array.isArray(n.strings) ? n.strings : []).filter(t => cards.has(t.from) && cards.has(t.to)).map(t => ({ ...t, id: uid(), from: cards.get(t.from), to: cards.get(t.to) }));
+    n.views = (Array.isArray(n.views) ? n.views : []).map(p => { const q = { ...p, id: uid() }; views.set(p.id, q.id); return q; });
+    n.home = views.get(n.home) || null;
+    if (o.id === pack.root) n.name = (state.boards.some(x => x.name === o.name) ? `${o.name} (copy)` : String(o.name || 'Board')).slice(0, 40);
+    return n;
+  });
+  const after = afterId && boardById(afterId);
+  const tail = after ? Math.max(...subtree(after).map(x => state.boards.indexOf(x))) + 1 : state.boards.length;
+  state.boards.splice(tail, 0, ...out);
+  normalize(state);
+  state.active = ids.get(pack.root);
+  renderTabs(); renderBoard(); save();
+  toast(`Pasted “${boardById(state.active).name}”.`);
+  return true;
+}
+function duplicateBoard(b) { copyBoard(b, true); pasteBoards(boardClip, b.parent, b.id); }
 
 function renameBoard(b) {
   const name = tabsEl.querySelector(`[data-board="${CSS.escape(b.id)}"] .tab-name`);
@@ -2735,8 +2829,10 @@ function wire() {
     const t = e.target;
     if (isEditable(t) || e.altKey) return;
     if (e.ctrlKey || e.metaKey) {
-      const c = selected && board().cards.find(k => k.id === selected);
-      if (c && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateCard(c); }
+      const c = selected && board().cards.find(k => k.id === selected), k = e.key.toLowerCase();
+      if (c && k === 'd') { e.preventDefault(); duplicateCard(c); }
+      else if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoStep(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redoStep(); }
       return;
     }
     if (e.key === 'Delete' && selected) {
@@ -2797,6 +2893,7 @@ async function init() {
   await keepBeforeUpdate(raw);
   state = normalize(raw) || defaultState();
   if (state.seenVersion !== version) { state.seenVersion = version; save(); }
+  undo.now = snapshot();                             // where undo starts
   applySettings();
   await Promise.race([setupUnblock(), new Promise(r => setTimeout(r, 1200))]);
   if (api?.extension?.isAllowedFileSchemeAccess) {

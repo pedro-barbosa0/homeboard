@@ -53,6 +53,9 @@ if ($manifestText -notmatch '"key"\s*:') {
     [IO.File]::WriteAllText($manifestPath, $manifestText, (New-Object Text.UTF8Encoding $false))
 }
 
+# tell the board where it lives, so its notices can name this folder
+[IO.File]::WriteAllText((Join-Path $Target 'install-path.txt'), $Target, (New-Object Text.UTF8Encoding $false))
+
 if ($helperProc) {
     $helperProc | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
     & (Join-Path $Target 'tools\start-helper.ps1')

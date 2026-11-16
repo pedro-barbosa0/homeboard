@@ -4,14 +4,18 @@
 param([switch]$Stop)
 
 $server = Join-Path (Split-Path $PSScriptRoot -Parent) 'helper\server.js'
-$running = Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*helper\server.js*" }
+$helpers = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*helper\server.js*' })
+$mine = @($helpers | Where-Object { $_.CommandLine -like "*$server*" })
 
 if ($Stop) {
-    $running | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+    $helpers | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
     Write-Host 'Homeboard helper stopped.'
     return
 }
-if ($running) { Write-Host 'Homeboard helper is already running.'; return }
+if ($mine.Count) { Write-Host 'Homeboard helper is already running.'; return }
+# a helper from another copy of Homeboard holds the port and would refuse this copy: replace it
+$helpers | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
 if (-not $node) { Write-Error 'Node.js was not found. Install it from nodejs.org, then run this again.'; return }
 Start-Process -FilePath $node -ArgumentList ('"' + $server + '"') -WindowStyle Hidden
