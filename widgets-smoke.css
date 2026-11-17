@@ -1,0 +1,94 @@
+/* Smoke break (widgets-smoke.js): the layer over the screen, the hint line, the shop, the widget. */
+.smoke-layer { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 880; pointer-events: none; }
+.smoke-hint {
+  position: fixed; left: 50%; bottom: 22px; z-index: 881; transform: translateX(-50%); pointer-events: none;
+  padding: 9px 18px; border-radius: 999px; background: rgba(15, 15, 18, .72); color: #f3eee6; font-size: 14px; font-weight: 600;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); white-space: nowrap;
+}
+
+/* the widget */
+.smoke-w { width: 100%; height: 100%; box-sizing: border-box; padding: 12px; border-radius: var(--radius); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: 8px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--surface) 88%, #6b4423), var(--surface)); border: 1px solid var(--border); box-shadow: var(--shadow); color: var(--text); }
+.smoke-w-what { grid-column: 1 / -1; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }
+.smoke-w-what b { font-size: 1.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smoke-w-what span { font-size: .8em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smoke-w button { border: 0; border-radius: 10px; padding: 8px 6px; font: inherit; font-weight: 650; cursor: pointer; }
+.smoke-w-go { background: linear-gradient(180deg, #ff9a3c, #e2641c); color: #fff; box-shadow: 0 4px 14px rgba(226, 100, 28, .35); }
+.smoke-w-shop { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+
+/* the shop: a scene behind, a glass counter in front */
+.smoke-shop { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; background-color: #ddd; background-size: cover; }
+.smoke-shop-box {
+  width: min(980px, calc(100vw - 60px)); max-height: calc(100vh - 60px); overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 18px;
+  border-radius: 18px; background: rgba(255, 255, 255, .72); color: #1d1d1f; -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .8); border: 1px solid rgba(255, 255, 255, .6);
+}
+.smoke-shop-sign { align-self: center; font: 800 26px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: .32em; padding: 10px 26px; border-radius: 999px; background: #111; color: #fff; box-shadow: 0 0 0 3px #fff, 0 6px 18px rgba(0, 0, 0, .3); }
+.smoke-shop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+.smoke-shop-row.foot { justify-content: space-between; font-size: .9em; }
+.smoke-chip { border: 1px solid rgba(0, 0, 0, .15); background: rgba(255, 255, 255, .7); color: #222; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .88em; cursor: pointer; }
+.smoke-chip.on { background: #111; color: #fff; border-color: #111; }
+.smoke-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 12px; border-radius: 12px;
+  background: linear-gradient(#2a2a2e, #1b1b1e); box-shadow: inset 0 2px 10px rgba(0, 0, 0, .5); }
+.smoke-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 8px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .08);
+  background: linear-gradient(#34343a, #26262b); color: #f3f3f3; font: inherit; font-size: .82em; cursor: pointer; text-align: center; }
+.smoke-item:hover { border-color: rgba(255, 255, 255, .35); }
+.smoke-item.on { border-color: #ff9a3c; box-shadow: 0 0 0 2px #ff9a3c inset; }
+.smoke-item small { color: #b9b9c0; }
+.smoke-price { margin-top: 2px; padding: 2px 8px; border-radius: 4px; background: #ffd400; color: #111; font-weight: 800; }
+.smoke-swatches { display: flex; gap: 4px; margin-top: 4px; }
+.smoke-swatch { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .6); cursor: pointer; padding: 0; }
+/* the little product pictures */
+.smoke-pack { position: relative; width: 52px; height: 74px; border-radius: 4px; margin-bottom: 4px; display: grid; place-items: end center; overflow: hidden;
+  background: linear-gradient(var(--a) 0 30%, var(--b) 30%); box-shadow: inset -6px 0 10px rgba(0, 0, 0, .2), 0 6px 12px rgba(0, 0, 0, .4); }
+.smoke-pack-name { font-size: 9px; font-weight: 800; color: #222; padding: 2px; margin-bottom: 8px; background: rgba(255, 255, 255, .8); border-radius: 2px; max-width: 46px; overflow: hidden; }
+.smoke-pack[data-kind="cigar"] { width: 22px; height: 86px; border-radius: 10px; background: linear-gradient(90deg, #4a2c16, #8a5a32 45%, #4a2c16); }
+.smoke-pack[data-kind="cigar"]::after { content: ""; position: absolute; left: 0; right: 0; top: 54%; height: 12px; background: var(--a); }
+.smoke-pack[data-kind="cigar"] .smoke-pack-name, .smoke-pack[data-kind="pipe"] .smoke-pack-name, .smoke-pack[data-kind="lighter"] .smoke-pack-name, .smoke-pack[data-kind="vape"] .smoke-pack-name { display: none; }
+.smoke-pack[data-kind="pipe"] { width: 74px; height: 50px; background: none; box-shadow: none; }
+.smoke-pack[data-kind="pipe"]::before { content: ""; position: absolute; left: 6px; top: 6px; width: 24px; height: 32px; border-radius: 4px 4px 12px 12px; background: linear-gradient(90deg, #3a2414, #6b4423, #3a2414); }
+.smoke-pack[data-kind="pipe"]::after { content: ""; position: absolute; left: 26px; top: 28px; width: 46px; height: 7px; border-radius: 4px; background: #2b1a0e; }
+.smoke-pack[data-kind="vape"] { width: 26px; height: 78px; border-radius: 12px; background: linear-gradient(90deg, #1b1e26, #4a5163 45%, #1b1e26); }
+.smoke-pack[data-kind="heated"] { width: 46px; height: 70px; background: linear-gradient(135deg, var(--a) 0 22%, #fafafa 22% 100%); }
+.smoke-pack[data-kind="pouch"] { width: 60px; height: 60px; border-radius: 8px 8px 14px 14px; background: linear-gradient(#d8b86a 0 18%, #3f6b3a 18%); }
+.smoke-pack[data-kind="lighter"] { width: 24px; height: 70px; border-radius: 8px; background: linear-gradient(90deg, color-mix(in srgb, var(--a) 70%, #000), var(--a) 40%, color-mix(in srgb, var(--a) 60%, #000)); }
+.smoke-pack[data-kind="lighter"]::before { content: ""; position: absolute; left: 2px; right: 2px; top: 0; height: 12px; border-radius: 3px; background: linear-gradient(90deg, #888, #eee, #777); }
+
+/* the scenes behind the shop (drawn, not photos) */
+.smoke-shop[data-scene="kiosk"] {              /* a tobacco kiosk: newspaper-print wall, lit shelves, white counter */
+  background:
+    linear-gradient(transparent 72%, #f2f2f2 72%, #fff 86%, #d9d9d9 86%),
+    repeating-linear-gradient(90deg, transparent 0 46px, rgba(0,0,0,.05) 46px 48px),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 1px, transparent 1px 6px),
+    linear-gradient(90deg, #ececec, #f8f8f8 50%, #e4e4e4);
+}
+.smoke-shop[data-scene="airport"] {            /* big windows over the runway, a glossy floor */
+  background:
+    linear-gradient(transparent 70%, rgba(255,255,255,.35) 70.5%, #c9ced6 71%, #e9edf2 100%),
+    repeating-linear-gradient(90deg, transparent 0 180px, #5b6470 180px 188px),
+    linear-gradient(transparent 58%, #6f7d8c 58% 61%, transparent 61%),
+    linear-gradient(#7fb4e6, #cfe5f7 60%, #e9f1f7);
+}
+.smoke-shop[data-scene="station"] {            /* a gas station at night: the canopy lights, a red stripe */
+  background:
+    radial-gradient(18% 12% at 20% 8%, rgba(255,255,230,.85), transparent 70%),
+    radial-gradient(18% 12% at 50% 8%, rgba(255,255,230,.85), transparent 70%),
+    radial-gradient(18% 12% at 80% 8%, rgba(255,255,230,.85), transparent 70%),
+    linear-gradient(transparent 16%, #c8102e 16% 19%, #f5f5f5 19% 21%, transparent 21%),
+    linear-gradient(#0b1020, #1b2238 55%, #2b2b2b 55%, #1a1a1a);
+}
+.smoke-shop[data-scene="cafe"] {               /* a café: warm lights over a wooden counter */
+  background:
+    radial-gradient(10% 14% at 25% 0%, rgba(255,214,150,.9), transparent 70%),
+    radial-gradient(10% 14% at 75% 0%, rgba(255,214,150,.9), transparent 70%),
+    linear-gradient(transparent 68%, #4e2f1a 68%, #6b4226 74%, #3a2212 100%),
+    repeating-linear-gradient(90deg, #5a3a22 0 60px, #4d311c 60px 62px),
+    #4a2e1a;
+}
+.smoke-shop[data-scene="market"] {             /* a supermarket: white light, aisles of colour */
+  background:
+    repeating-linear-gradient(0deg, transparent 0 44px, rgba(0,0,0,.08) 44px 46px),
+    repeating-linear-gradient(90deg, #e63946 0 20px, #f1faee 20px 30px, #457b9d 30px 52px, #ffb703 52px 66px, #2a9d8f 66px 90px, #f1faee 90px 100px),
+    #f4f4f4;
+  background-size: auto, 100% 60%, auto; background-repeat: repeat, no-repeat, repeat; background-position: 0 0, 0 18%, 0 0;
+}

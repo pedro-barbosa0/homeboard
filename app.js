@@ -4141,12 +4141,13 @@ const nowPlaying = (() => {
     for (const b of state.boards) for (const c of b.cards) {
       let host = '';
       if (c.type === 'web') { try { host = new URL(c.last?.url || c.url).hostname; } catch { /* none */ } }
-      const isMedia = c.type === 'media' || (c.type === 'web' && MEDIA_HOSTS.test(host)) || (c.type === 'widget' && /^(ytmusic|viz)$/.test(c.widget));
+      const isMedia = c.type === 'media' || (c.type === 'web' && MEDIA_HOSTS.test(host)) || (c.type === 'widget' && /^(ytm|frame)$/.test(c.widget));
       if (!isMedia) continue;
-      const kind = c.type === 'media' ? ({ image: 'Picture', video: 'Video', pdf: 'PDF' }[c.kind] || 'Media') : c.type === 'web' ? host.replace(/^www\./, '') : c.widget === 'ytmusic' ? 'YouTube Music controls' : 'Sound visualiser';
+      const kind = c.type === 'media' ? ({ image: 'Picture', video: 'Video', pdf: 'PDF' }[c.kind] || 'Media') : c.type === 'web' ? host.replace(/^www\./, '') : c.widget === 'ytm' ? 'YouTube Music controls' : 'Picture frame';
       const text = fold(`${c.title} ${kind} ${b.name} ${c.url || ''} ${c.last?.url || ''}`);
       if (f && !f.split(/\s+/).every(w => text.includes(w))) continue;
-      out.push({ key: 'l' + c.id, title: c.title, sub: `${kind} · ${b.name}`, icon: c.type === 'media' ? (c.kind === 'video' ? 'play' : c.kind === 'pdf' ? 'file' : 'media') : c.type === 'web' ? 'web' : 'widget', go: () => followBoardLink(`homeboard:board/${b.id}/card/${c.id}`) });
+      const nice = /^[\w-]{12,}\.(jpe?g|png|webp|gif|heic)$/i.test(c.title) || /^(image|img|screenshot|photo)[\s_-]*\d*(\.\w+)?$/i.test(c.title) ? `${kind} on ${b.name}` : c.title;
+      out.push({ key: 'l' + c.id, title: nice, sub: `${kind} · ${b.name}`, icon: c.type === 'media' ? (c.kind === 'video' ? 'play' : c.kind === 'pdf' ? 'file' : 'media') : c.type === 'web' ? 'web' : 'widget', go: () => followBoardLink(`homeboard:board/${b.id}/card/${c.id}`) });
     }
     return out.slice(0, 60);
   }
@@ -4177,18 +4178,53 @@ const nowPlaying = (() => {
     if (!btn) return;
     const src = sources(), top = src[0];
     const any = src.some(x => x.playing);
-    btn.hidden = !src.length;
+    btn.hidden = !src.length && state.settings.overlay === 'off';
     btn.classList.toggle('on', any);
     btn.querySelector('.np-btn-title').textContent = top ? top.title : '';
     btn.title = top ? `${any ? 'Playing' : 'Paused'}: ${top.title}${top.sub ? ' — ' + top.sub : ''}` : '';
     if (!light || (panel && !panel.hidden)) drawPanel();
+  }
+  /* Screen visuals: pick the music overlay by its picture, not by name */
+  let visuals = null;
+  const PIC = {                                       // little moving pictures of each style (SVG; the bars bounce with CSS)
+    off: '<rect x="6" y="10" width="68" height="34" rx="5" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="3 3"/><path d="M28 27h24" stroke="currentColor" stroke-opacity=".5"/>',
+    bottom: Array.from({ length: 9 }, (_, i) => `<rect class="b" style="animation-delay:-${(i * .17).toFixed(2)}s" x="${8 + i * 7.4}" y="20" width="4.4" height="30" rx="2"/>`).join(''),
+    both: Array.from({ length: 9 }, (_, i) => `<rect class="b" style="animation-delay:-${(i * .17).toFixed(2)}s" x="${8 + i * 7.4}" y="28" width="4.4" height="22" rx="2"/><rect class="t" style="animation-delay:-${(i * .23).toFixed(2)}s" x="${8 + i * 7.4}" y="4" width="4.4" height="18" rx="2"/>`).join(''),
+    sides: Array.from({ length: 6 }, (_, i) => `<rect class="l" style="animation-delay:-${(i * .2).toFixed(2)}s" x="4" y="${6 + i * 7.6}" width="26" height="4.2" rx="2"/><rect class="r" style="animation-delay:-${(i * .27).toFixed(2)}s" x="50" y="${6 + i * 7.6}" width="26" height="4.2" rx="2"/>`).join(''),
+    glow: '<rect class="g" x="5" y="5" width="70" height="44" rx="7" fill="none" stroke-width="5"/><rect x="5" y="5" width="70" height="44" rx="7" fill="none" stroke="currentColor" stroke-opacity=".25"/>',
+    waves: '<path class="w1" d="M0 40 Q10 26 20 36 T40 34 T60 30 T80 36 V54 H0Z"/><path class="w2" d="M0 44 Q12 34 24 42 T48 38 T80 42 V54 H0Z"/>',
+    bursts: '<path class="s" d="M14 6l3 7 7-3-3 7 7 3-7 3 3 7-7-3-3 7-3-7-7 3 3-7-7-3 7-3-3-7 7 3z"/><path class="s s2" d="M66 30l2 5 5-2-2 5 5 2-5 2 2 5-5-2-2 5-2-5-5 2 2-5-5-2 5-2-2-5 5 2z"/><path d="M4 46 Q24 34 40 42 T76 38" fill="none" stroke="currentColor" stroke-width="2"/>',
+  };
+  function drawVisuals() {
+    const o = state.settings;
+    const tile = (key, name) => h('button', { class: 'np-fx' + (o.overlay === key ? ' on' : ''), type: 'button', title: name, onclick() { o.overlay = key; fx.refresh(); save(); drawVisuals(); } },
+      (() => { const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 80 54'); sv.setAttribute('class', 'np-fx-pic look-' + o.overlayLook); sv.innerHTML = PIC[key]; return sv; })(),
+      h('span', null, name));
+    const chip = (on, label, fn, sw) => h('button', { class: 'style-chip' + (on ? ' on' : ''), type: 'button', onclick: fn }, sw, label);
+    const dot = bg => { const i = h('i', { class: 'scene-dot' }); i.style.background = bg; return i; };
+    const pal = coverPalette ? `linear-gradient(90deg, ${coverPalette.vivid}, ${coverPalette.light})` : 'conic-gradient(#ff6b6b, #ffd93d, #4d96ff, #ff6b6b)';
+    visuals.replaceChildren(
+      h('div', { class: 'np-head' }, 'Screen visuals'),
+      h('div', { class: 'np-fx-grid' }, Object.entries(FX_STYLES).map(([k, n]) => tile(k, n.replace(/^Bars /, '').replace(/^(.)/, m => m.toUpperCase())))),
+      o.overlay !== 'off' && h('div', { class: 'style-row' }, Object.entries(FX_LOOKS).map(([k, n]) => chip(o.overlayLook === k, n, () => { o.overlayLook = k; save(); drawVisuals(); }))),
+      o.overlay !== 'off' && h('div', { class: 'style-row' },
+        chip(o.overlayColor === 'cover', 'Cover', () => { o.overlayColor = 'cover'; save(); drawVisuals(); }, dot(pal)),
+        chip(o.overlayColor === 'accent', 'Accent', () => { o.overlayColor = 'accent'; save(); drawVisuals(); }, dot('var(--accent)')),
+        chip(o.overlayColor === 'rainbow', 'Rainbow', () => { o.overlayColor = 'rainbow'; save(); drawVisuals(); }, dot('conic-gradient(red, yellow, lime, cyan, blue, magenta, red)')),
+        chip(o.overlayColor === 'color', 'Colour', () => { o.overlayColor = 'color'; save(); drawVisuals(); }, dot(o.overlayHex)),
+        o.overlayColor === 'color' && h('input', { type: 'color', value: o.overlayHex, 'aria-label': 'Overlay colour', oninput(e) { o.overlayHex = e.target.value; save(); } })),
+      o.overlay !== 'off' && h('div', { class: 'np-sliders' },
+        h('label', null, 'Strength', h('input', { type: 'range', min: 30, max: 200, step: 5, value: o.overlayPower, oninput(e) { o.overlayPower = +e.target.value; save(); } })),
+        h('label', null, 'Opacity', h('input', { type: 'range', min: 20, max: 100, step: 5, value: o.overlayAlpha, oninput(e) { o.overlayAlpha = +e.target.value; save(); } }))),
+      h('button', { class: 'btn np-ambient', type: 'button', title: 'Hide the bars and buttons; Esc brings them back', onclick() { close(); ambient.toggle(true); } }, ambient.on ? 'Leave ambient mode' : 'Ambient mode'));
   }
   function open() {
     if (!panel) {
       search = h('input', { class: 'field', type: 'search', placeholder: 'Find media on your boards', 'aria-label': 'Find media on your boards', spellcheck: 'false' });
       search.addEventListener('input', drawPanel);
       list = h('div', { class: 'np-list' });
-      panel = h('div', { id: 'np-panel', role: 'dialog', 'aria-label': 'Now playing' }, search, list);
+      visuals = h('div', { class: 'np-visuals' });
+      panel = h('div', { id: 'np-panel', role: 'dialog', 'aria-label': 'Now playing' }, search, h('div', { class: 'np-scroll' }, visuals, list));
       panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
       document.body.append(panel);
       document.addEventListener('pointerdown', e => { if (panel && !panel.hidden && !panel.contains(e.target) && !btn.contains(e.target)) close(); }, true);
@@ -4196,6 +4232,7 @@ const nowPlaying = (() => {
     panel.hidden = false;
     search.value = '';
     refreshTabs();
+    drawVisuals();
     drawPanel();
     search.focus();
     clearInterval(timer);

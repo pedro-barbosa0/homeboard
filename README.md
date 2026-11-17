@@ -255,6 +255,7 @@ and **right-click for all options**.
 | --- | --- |
 | YouTube Music | Shows what YouTube Music is playing — artwork, title, artist, progress — and controls it: previous, play/pause, next, jump (click the bar), volume (slider, or scroll over the controls), like. Works with YouTube Music open anywhere in Edge: a normal or pinned tab, or a website window on a board. Right-click: go to the player, open YouTube Music in a pinned tab, pick a player when several are open, eight looks (glass panel, liquid glass tinted by the cover, artwork behind, ambient glow, a vinyl record that spins while playing, framed cover, compact pill, no panel). Needs the installed extension. |
 | Picture frame | Gilded, gallery black, wood, polaroid, thin white or no frame, with or without a white mount. Shows **the cover of what plays** (it changes with the song; double-click to pause or play), your own picture, or the cover and your picture when nothing plays. |
+| Smoke break (prototype) | An arm holds what you smoke, the other a lighter, over the whole screen. **Space** strikes the lighter (it takes a few tries), **hold** it to keep the flame on the tip until it lights (cigars take longer); then **hold Space to draw** — the ember glows, it burns faster, smoke comes out when you let go. Ash grows and sometimes falls; it goes out if left too long; lighters run out of gas (sparks only). **Esc** puts it out. The **Tabacaria** sells cigarettes, rolling tobacco (roll it first with Space), cigars, a cigarillo, a pipe, heated tobacco (hold to heat, 12 puffs) and a vape, plus lighters in colours (flint, refillable, petrol flip, torch, matches), in a kiosk, airport, gas station, café or supermarket. Names are made up. |
 | Sound visualiser | Moves by itself with whatever plays in Edge — a tab, a pinned tab, or a website window on a board — with no sharing dialog and no sharing bar (`tap.js` listens inside the page that plays and sends only the levels). If a tab started playing on its own, the widget may ask you to click once in that tab first. Click the widget to pause it. Right-click → "Listen to" can switch to a microphone-type input. The bars keep their size and spacing at any width; four shapes, four colourings. |
 | Clock | 8 looks (right-click → Change clock), seconds, date, 24-hour |
 | 8-ball pool | You vs the computer or 2 players. Aim with the mouse, hold and pull back for power, scroll for top/back spin. "Choose a cue" opens a cue rack; "Change table" lists the tables. Grab the wooden rail to move it. |
@@ -274,7 +275,7 @@ a thick lens; plain blur while the board moves), Paper, Neon outline. **Glass co
 **Cover art** (the cover itself, blurred big behind everything), Spotlight, Split colour, Film grain.
 **Colours follow the music**: the accent takes the colour of the cover. Saved looks keep all of these.
 
-**Music overlay and ambient** — a layer over the whole screen that moves with whatever plays in Edge,
+**Music overlay and ambient** — choose it in **Now playing** (the music button by the clock): little moving pictures of each style, then look, colour, strength and opacity, and **Ambient mode**. A layer over the whole screen that moves with whatever plays in Edge,
 like shaders over a game: bars along the bottom, top and bottom, from the sides, an edge glow, waves,
 or stars on the beat; in clear glass, tinted glass, neon or solid; coloured from the cover, the accent,
 a rainbow or a colour you pick; with strength and opacity. It never takes a click — every card stays
@@ -327,6 +328,10 @@ To read a PDF offline, drop the file on the board rather than linking to it.
   snapshot of the desktop wallpaper used as the backdrop; replace that file (or
   pick a background image in Customize) when the wallpaper changes.
 
+## Plans
+
+`docs/ROADMAP-2.0.md` — the review of everything so far and the plan for 2.0 (cleaning and polish).
+
 ## Files
 
 | File | What it is |
@@ -340,6 +345,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `markdown.js` | Markdown rendering, HTML-to-Markdown, and the zip writer for exports |
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
 | `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle, sound visualiser, YouTube Music styles |
+| `widgets-smoke.js`, `widgets-smoke.css` | The smoke break prototype and the Tabacaria |
 | `widgets-music.js`, `ytm.js` | The YouTube Music widget, and the small script Homeboard runs inside YouTube Music pages to read and control the player |
 | `extras.css` | Looks list, hidden/locked cards, cue rack and tobacco machine, apps and workspaces |
 | `apps.js` | The Apps and Workspace cards |
@@ -351,6 +357,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
 | `dev/webzoomtest.js` | Checks zooming a website window from inside the site, and coming back to the same page and scroll position |
+| `dev/smoketest.js` | Plays the smoke break through (strike, hold, draw, Esc), the Tabacaria scenes, a cigar with a torch lighter |
 | `dev/overlaytest.js` | Checks commands, the music overlay (clicks pass through), ambient mode, clear glass and refraction; screenshots each overlay |
 | `dev/styletest.js` | Checks style kits (widgets on every board too), Undo, Shuffle, materials, the picture frame and cover colours; screenshots each kit |
 | `dev/maptest.js` | Checks the view map: laying out, dragging tiles, Ctrl+arrows by direction |

@@ -85,6 +85,7 @@ const server = http.createServer((req, res) => {
     await shot('overlay-bottom-tinted.png');
 
     // ambient mode
+    await ev("document.head.append(Object.assign(document.createElement('style'), { id: 'no-fade', textContent: '* { transition: none !important; }' }))");   // the fade itself is not what is checked
     await command('ambient');
     await sleep(700);
     const amb = await ev(`({ on: document.body.classList.contains('ambient'), top: getComputedStyle(document.querySelector('#topbar')).opacity, dock: getComputedStyle(document.querySelector('#dock')).opacity, card: getComputedStyle(document.querySelector('[data-id="n1"]')).opacity })`);
@@ -92,6 +93,7 @@ const server = http.createServer((req, res) => {
     await shot('overlay-ambient.png');
     await key('Escape', 27);
     await sleep(300);
+    await ev("document.querySelector('#no-fade')?.remove()");
     ok('Esc leaves ambient mode', await ev(`!document.body.classList.contains('ambient')`));
 
     // glass: clear, and liquid glass that bends the light
@@ -104,6 +106,17 @@ const server = http.createServer((req, res) => {
     await command('backdrop soft');
     await sleep(800);
     await shot('glass-clear-liquid.png');
+    // the visuals picker in Now playing
+    await send('Page.bringToFront', {}, sid);
+    await ev("document.querySelector('#now-playing').click()");
+    await sleep(600);
+    const tiles = await ev("[...document.querySelectorAll('#np-panel .np-fx')].map(b => b.textContent)");
+    ok('Now playing offers the screen visuals with pictures', tiles.length === 7, JSON.stringify(tiles));
+    await ev("[...document.querySelectorAll('#np-panel .np-fx')].find(b => /Edge glow/.test(b.textContent)).click()");
+    await sleep(700);
+    ok('…and picking one turns it on', (await stored()).settings.overlay === 'glow');
+    await sleep(400);
+    await shot('nowplaying-visuals.png');
     const errs = await ev('window.__errs');
     ok('no errors on the page', !errs.length, JSON.stringify(errs));
   } catch (e) { ok('no exceptions', false, e.stack); }
