@@ -348,7 +348,7 @@ function normalize(s) {
       if (c.type === 'web') { c.url = toAddress(String(c.url || '')) || ''; c.plain = !!c.plain; c.own = !!c.own; if (typeof c.noScroll !== 'boolean') delete c.noScroll; }
       if (c.type === 'apps') c.apps = list(c.apps).map(appItem).filter(Boolean);
       if (c.type === 'space') c.items = list(c.items).map(appItem).filter(Boolean).slice(0, 40);
-      if (c.type === 'term') c.cwd = typeof c.cwd === 'string' ? c.cwd.slice(0, 400) : '';
+      if (c.type === 'term') { c.cwd = typeof c.cwd === 'string' ? c.cwd.slice(0, 400) : ''; if (!['powershell', 'pwsh', 'cmd'].includes(c.shell)) delete c.shell; delete c.restartTerm; }
       if (c.type === 'media') {
         c.kind = ['image', 'video', 'pdf'].includes(c.kind) ? c.kind : 'image';
         c.src = (c.src && normalizeUrl(String(c.src))) || null;
@@ -1001,7 +1001,7 @@ function panDrag(e) {
 }
 let spaceDown = false;
 addEventListener('keydown', e => {
-  if (e.code !== 'Space' || e.repeat || isEditable(e.target) || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.code !== 'Space' || e.repeat || isEditable(e.target) || e.target.closest?.('.xterm') || e.ctrlKey || e.altKey || e.metaKey) return;
   e.preventDefault(); spaceDown = true; document.body.classList.add('space-pan');
 });
 addEventListener('keyup', e => { if (e.code === 'Space') { spaceDown = false; document.body.classList.remove('space-pan'); } });
@@ -1100,7 +1100,7 @@ const cardZoom = c => clamp((c.zoom || 1) * (c.grow ? c.w / c.grow : 1), .3, 5);
 function setTextSize(c, z) {
   c.zoom = clamp(Math.round(z * 100) / 100, .3, 4);
   const el = cardEl(c.id);
-  if (el) place(el, c);
+  if (el) { place(el, c); el.dispatchEvent(new Event('hb-zoom')); }
   save();
   hud(`${c.type === 'web' ? 'Zoom' : 'Text'} ${Math.round(cardZoom(c) * 100)}%`);
 }
@@ -1532,6 +1532,13 @@ function cardItems(c) {
       { info: c.type === 'web' ? 'Or, inside the site: Ctrl + scroll, pinch, Ctrl + plus / minus, Ctrl + 0.' : 'Or hold Ctrl and scroll over the selected card.' },
     ] },
     c.type === 'links' && { label: 'One click shows a preview (two clicks open)', checked: !c.direct, action() { c.direct = !c.direct; save(); } },
+    c.type === 'term' && { label: `Shell · ${SHELL_NAMES[c.shell] || SHELL_NAMES.powershell}`, icon: 'term', items: Object.entries(SHELL_NAMES).map(([k, name]) => ({
+      label: name, checked: (c.shell || 'powershell') === k, async action() {
+        if ((c.shell || 'powershell') === k) return;
+        c.shell = k; save();
+        await helper.call('/term/stop', { key: c.id }).catch(() => {});
+        setTimeout(() => refreshCard(c), 300);
+      } })) },
     c.type === 'web' && { label: 'Show only the website (no frame)', checked: !!c.plain, action() { c.plain = !c.plain; refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Hide the scroll bars', checked: hidesBars(c), action() { c.noScroll = !hidesBars(c); refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Come back where I left it (page and scroll)', checked: !c.forget, action() { c.forget = !c.forget; if (c.forget) delete c.last; save(); } },
@@ -2081,7 +2088,7 @@ function setupFinder() {
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (searchInput.value) { searchInput.value = ''; draw(); } else searchInput.blur(); }
     else if (e.key === 'Enter' && finder.pick > 0) { e.preventDefault(); finderPick(); }
   });
-  addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); searchInput.focus(); searchInput.select(); } }, true);
+  addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.target.closest?.('.xterm')) { e.preventDefault(); searchInput.focus(); searchInput.select(); } }, true);
 }
 function finderPick() {                                 // Enter: the row picked with the arrows (the first row is the web search)
   if (!finder || finder.box.hidden || !finder.pick) return false;
@@ -2516,72 +2523,104 @@ function buildFiles(c, body) {
 }
 
 /* ---- console: PowerShell in a card (through the helper) ---- */
+/* ---- console: a real terminal (xterm.js, the one VS Code uses) on a Windows pseudo-console run by the helper.
+   Full-screen programs work (Claude Code, vim, htop-likes), with colours and resizing. Ctrl+C copies when text is
+   selected and otherwise stops what runs; Ctrl+V pastes. The session keeps running when the board closes. ---- */
+const SHELL_NAMES = { powershell: 'Windows PowerShell', pwsh: 'PowerShell 7', cmd: 'Command Prompt' };
+function termTheme() {
+  const cs = getComputedStyle(document.body), v = n => cs.getPropertyValue(n).trim();
+  return { background: 'rgba(0,0,0,0)', foreground: v('--text') || '#e6e6e6', cursor: v('--accent') || '#7aa2ff', cursorAccent: '#000',
+    selectionBackground: 'rgba(122,162,255,.35)' };
+}
 function buildTerm(c, body, head, more) {
-  const out = h('pre', { class: 'term-out', tabindex: '0', 'aria-label': 'Console output' });
-  const prompt = h('span', { class: 'term-prompt' }, 'PS>');
-  const input = h('input', { class: 'term-in', type: 'text', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Command' });
-  body.append(out, h('div', { class: 'term-line' }, prompt, input));
-  let id = null, abort = null, past = [], at = 0;
-  const print = (text, cls) => {
-    out.append(h('span', { class: cls }, text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\r/g, '')));
-    while (out.childNodes.length > 3000) out.firstChild.remove();
-    out.scrollTop = out.scrollHeight;
+  const box = h('div', { class: 'term-x' });
+  body.append(box);
+  if (!window.Terminal || !window.FitAddon) { box.textContent = 'The terminal files are missing (vendor/xterm).'; return; }
+  const term = new Terminal({
+    fontFamily: '"Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace', fontSize: Math.round(13 * cardZoom(c)),
+    cursorBlink: true, scrollback: 8000, allowTransparency: true, theme: termTheme(), drawBoldTextInBrightColors: true,
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  let id = null, abort = null, ended = false, opened = false;
+  const say = text => term.write('\r\n\x1b[2m' + text.replace(/\n/g, '\r\n') + '\x1b[0m\r\n');
+
+  // keys go to the helper in order, gathered while one is on its way
+  let queue = '', sending = false;
+  const flushKeys = async () => {
+    if (sending || !queue || !id) return;
+    sending = true;
+    const data = queue; queue = '';
+    try { await helper.call('/term/write', { id, data }); } catch { say('[the console has ended]'); id = null; ended = true; }
+    sending = false;
+    flushKeys();
   };
-  async function start() {
-    out.replaceChildren();
-    if (!(await helper.ready(true))) {
-      print(helperHint() + '\n', 'err');
-      out.append(h('div', { class: 'btn-row' },
-        installedAt && h('button', { class: 'btn', type: 'button', onclick() { navigator.clipboard.writeText(helperFolder()).then(() => toast('Folder path copied: paste it into File Explorer’s address bar.'), () => {}); } }, 'Copy the folder path'),
-        h('button', { class: 'btn', type: 'button', onclick: start }, 'Try again')));
-      return;
+  term.onData(d => {
+    if (!id) { if (ended) start(); return; }               // after the end, any key starts a new console
+    queue += d; flushKeys();
+  });
+  term.attachCustomKeyEventHandler(e => {
+    if (e.type !== 'keydown') return true;
+    const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === 'c' && term.hasSelection()) {   // copy, like Windows Terminal
+      navigator.clipboard?.writeText(term.getSelection()).catch(() => {});
+      term.clearSelection();
+      return false;
     }
-    try { id = (await helper.call('/term/start', { cwd: c.cwd, key: c.id })).id; } catch (e) { print(e.message + '\n', 'err'); return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'v') return false;              // the browser pastes into the terminal
+    return true;
+  });
+  let sizeTimer = 0, sent = '';
+  const refit = () => {
+    clearTimeout(sizeTimer);
+    sizeTimer = setTimeout(() => {
+      if (!box.isConnected || !box.clientWidth || !box.clientHeight) return;
+      try { fit.fit(); } catch { return; }
+      const now = term.cols + 'x' + term.rows;
+      if (id && now !== sent) { sent = now; helper.call('/term/resize', { id, cols: term.cols, rows: term.rows }).catch(() => {}); }
+    }, 60);
+  };
+  new ResizeObserver(refit).observe(box);
+  body.closest('.card')?.addEventListener('hb-zoom', () => { term.options.fontSize = Math.round(13 * cardZoom(c)); refit(); });
+
+  async function start() {
+    ended = false;
+    abort?.abort();
+    if (!opened) { term.open(box); opened = true; }
+    term.reset();
+    if (!(await helper.ready(true))) { say(helperHint()); ended = true; return; }
+    try { fit.fit(); } catch { /* not on screen yet */ }
+    try { id = (await helper.call('/term/start', { cwd: c.cwd, key: c.id, cols: term.cols, rows: term.rows, shell: c.shell })).id; }
+    catch (e) { say(e.message); ended = true; return; }
+    sent = term.cols + 'x' + term.rows;
     abort = new AbortController();
     try {
       const res = await fetch(`${helper.base}/term/stream?id=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + helper.token }, signal: abort.signal });
-      if (!res.ok) { print('The console could not be connected to the helper.\n', 'err'); id = null; return; }
+      if (!res.ok) { say('The console could not be connected to the helper.'); id = null; ended = true; return; }
       const reader = res.body.getReader(), dec = new TextDecoder();
       let buf = '';
       for (;;) {
         const { done, value } = await reader.read();
-        if (done || !out.isConnected) break;          // the card is gone: stop listening (the helper then closes the console)
+        if (done || !box.isConnected) break;           // the card is gone: stop listening (the console keeps running)
         buf += dec.decode(value, { stream: true });
         let i;
         while ((i = buf.indexOf('\n')) >= 0) {
           const msg = JSON.parse(buf.slice(0, i));
           buf = buf.slice(i + 1);
-          if (msg.cwd != null) {
-            if (c.cwd !== msg.cwd) { c.cwd = msg.cwd; save(); }
-            prompt.textContent = `PS ${msg.cwd.length > 46 ? '…' + msg.cwd.slice(-44) : msg.cwd}>`;   // long folders show their end
-            prompt.title = msg.cwd;
-          }
-          else if (msg.o) print(msg.o);
-          else if (msg.e) print(msg.e, 'err');
-          else if ('x' in msg) { print('[the console ended; press Enter to start a new one]\n', 'dim'); id = null; }
+          if (msg.b) term.write(Uint8Array.from(atob(msg.b), ch => ch.charCodeAt(0)));
+          else if ('x' in msg) { say('[the console ended · press any key for a new one]'); id = null; ended = true; }
         }
       }
     } catch { /* stopped */ }
-    abort.abort();
   }
-  const restart = () => { if (id) helper.call('/term/stop', { id }).catch(() => {}); abort?.abort(); id = null; start(); };
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const cmd = input.value;
-      input.value = '';
-      if (!id) { start(); return; }
-      print(`${prompt.textContent} ${cmd}\n`, 'cmd');
-      if (cmd.trim()) { past.push(cmd); at = past.length; }
-      if (/^\s*(cls|clear)\s*$/i.test(cmd)) { out.replaceChildren(); return; }
-      helper.call('/term/write', { id, text: cmd }).catch(err => print(err.message + '\n', 'err'));
-    } else if (e.key === 'ArrowUp' && past.length) { e.preventDefault(); at = Math.max(0, at - 1); input.value = past[at]; }
-    else if (e.key === 'ArrowDown' && past.length) { e.preventDefault(); at = Math.min(past.length, at + 1); input.value = past[at] || ''; }
-    else if (e.key.toLowerCase() === 'c' && e.ctrlKey && input.selectionStart === input.selectionEnd) { e.preventDefault(); print('^C\n', 'dim'); restart(); }
-  });
-  out.addEventListener('click', () => { if (!String(getSelection())) input.focus(); });
-  more.before(h('button', { class: 'icon-btn', type: 'button', title: 'Stop what is running and start a fresh console (Ctrl+C)', 'aria-label': 'Restart console', onclick: restart }, icon('reload')));
-  start();
+  const restart = async () => {
+    if (id) await helper.call('/term/stop', { id }).catch(() => {});
+    id = null; abort?.abort();
+    setTimeout(start, 300);
+  };
+  box.addEventListener('pointerdown', () => setTimeout(() => term.focus(), 0));
+  more.before(h('button', { class: 'icon-btn', type: 'button', title: 'End what runs here and start a fresh console', 'aria-label': 'Restart console', onclick: restart }, icon('reload')));
+  requestAnimationFrame(() => start());
 }
 
 /* ---- website window ---- */
@@ -3804,6 +3843,7 @@ function wire() {
   addEventListener('blur', closeMenu);
   addEventListener('resize', closeMenu);
   document.addEventListener('keydown', e => {
+    if (e.target.closest?.('.xterm')) return;          // a console card: every key is the program's
     if (e.key === 'Escape') {
       if (!menu.hidden) closeMenu();
       else if (closePeek()) { /* closed the preview */ }

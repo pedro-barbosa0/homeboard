@@ -99,49 +99,59 @@ foreach ($p in @($env:HB_PATHS | ConvertFrom-Json)) {
   elseif (Test-Path -LiteralPath $p) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin') }
 }`;
 
-/* ---------- console sessions (PowerShell driven through pipes) ---------- */
+/* ---------- console sessions: a real pseudo-console (helper/conpty.ps1), drawn on the board by xterm.js ----------
+   A console card keeps one session whichever tab shows it; a tab that opens later gets the recent output replayed.
+   Sessions keep running while no board looks at them (a long job or Claude Code may be working), up to 8 hours. */
 const terms = new Map();
-const MARK = /^<<HB:(.*)>>\r?$/;
-function startTerm(cwd, key) {
-  // a console card keeps one session, whichever tab shows it: a new tab joins the one already running
-  key = typeof key === 'string' ? key.slice(0, 80) : '';
-  if (key) for (const t of terms.values()) if (t.key === key) return { id: t.id, joined: true };
-  if (terms.size >= 12) throw new Error('Too many consoles are running. Close some console cards; unused ones stop by themselves after a few minutes.');
+const SHELLS = new Set(['powershell', 'pwsh', 'cmd']);
+function cleanEnv() {                                  // a console of yours, not of whatever started the helper
+  const env = { ...process.env, COLORTERM: 'truecolor', TERM_PROGRAM: 'Homeboard' };
+  for (const k of Object.keys(env)) if (k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_') || k === 'ELECTRON_RUN_AS_NODE') delete env[k];
+  return env;
+}
+function startTerm(o) {
+  const key = typeof o.key === 'string' ? o.key.slice(0, 80) : '';
+  if (key) for (const t of terms.values()) if (t.key === key) { resizeTerm(t, o.cols, o.rows); return { id: t.id, joined: true }; }
+  if (terms.size >= 12) throw new Error('Too many consoles are running. Close some console cards (the ✕ ends a console), or restart the helper.');
   let dir = os.homedir();
-  try { const c = clean(cwd); if (fs.statSync(c).isDirectory()) dir = c; } catch { /* fall back to the home folder */ }
+  try { const c = clean(o.cwd); if (fs.statSync(c).isDirectory()) dir = c; } catch { /* the home folder */ }
+  const shell = SHELLS.has(o.shell) ? o.shell : 'powershell';
+  const cols = Math.max(20, Math.min(400, +o.cols || 100)), rows = Math.max(5, Math.min(200, +o.rows || 30));
   const id = crypto.randomBytes(8).toString('hex');
-  const proc = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NoExit', '-Command', '-'], { cwd: dir, windowsHide: true });
-  const t = { id, key, proc, log: [], readers: new Set(), part: { o: '', e: '' }, timer: { o: 0, e: 0 }, idle: Date.now() };
+  const proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'conpty.ps1'),
+    '-Shell', shell, '-Cwd', dir, '-Cols', String(cols), '-Rows', String(rows)], { cwd: dir, windowsHide: true, env: cleanEnv() });
+  const t = { id, key, proc, log: [], logSize: 0, readers: new Set(), idle: Date.now(), cols, rows };
   const emit = msg => {
-    t.log.push(msg);
-    if (t.log.length > 4000) t.log.splice(0, 1000);
     const line = JSON.stringify(msg) + '\n';
+    if (msg.b) { t.log.push(line); t.logSize += line.length; while (t.logSize > 600000 && t.log.length > 1) t.logSize -= t.log.shift().length; }
+    else t.log.push(line);
     for (const res of t.readers) res.write(line);
   };
-  const feed = kind => chunk => {
-    t.part[kind] += chunk.toString('utf8');
-    let i;
-    while ((i = t.part[kind].indexOf('\n')) >= 0) {
-      const line = t.part[kind].slice(0, i + 1);
-      t.part[kind] = t.part[kind].slice(i + 1);
-      const m = kind === 'o' && MARK.exec(line.replace(/\n$/, ''));
-      emit(m ? { cwd: m[1] } : { [kind]: line });     // the marker tells the board the command ended and where we are
-    }
-    clearTimeout(t.timer[kind]);                      // text without a line end (a question, a progress line): show it soon anyway
-    t.timer[kind] = setTimeout(() => { if (t.part[kind] && !t.part[kind].startsWith('<<HB:')) { emit({ [kind]: t.part[kind] }); t.part[kind] = ''; } }, 150);
-  };
-  proc.stdout.on('data', feed('o'));
-  proc.stderr.on('data', feed('e'));
-  proc.on('exit', code => { emit({ x: code }); for (const res of t.readers) res.end(); terms.delete(id); });
-  proc.on('error', () => { emit({ e: 'PowerShell could not be started.\n' }); });
+  proc.stdout.on('data', chunk => emit({ b: chunk.toString('base64') }));
+  let err = '';
+  proc.stderr.on('data', d => { err += d; });
+  proc.on('exit', code => { if (code && err.trim() && !t.log.length) emit({ b: Buffer.from('\r\n' + err.trim().split('\n')[0] + '\r\n').toString('base64') }); emit({ x: code }); for (const res of t.readers) res.end(); terms.delete(id); });
+  proc.on('error', () => { emit({ b: Buffer.from('The console could not be started.\r\n').toString('base64') }); });
   terms.set(id, t);
-  proc.stdin.write('[Console]::OutputEncoding = [Text.Encoding]::UTF8; $OutputEncoding = [Text.Encoding]::UTF8\n"<<HB:$((Get-Location).Path)>>"\n');
   return { id };
 }
+function frame(t, kind, payload) {
+  const head = Buffer.alloc(5);
+  head[0] = kind.charCodeAt(0);
+  head.writeInt32LE(payload.length, 1);
+  try { t.proc.stdin.write(Buffer.concat([head, payload])); } catch { /* ended */ }
+}
+function resizeTerm(t, cols, rows) {
+  cols = Math.max(20, Math.min(400, +cols || 0)); rows = Math.max(5, Math.min(200, +rows || 0));
+  if (!+cols || !+rows || (cols === t.cols && rows === t.rows)) return;
+  t.cols = cols; t.rows = rows;
+  const b = Buffer.alloc(4); b.writeInt16LE(cols, 0); b.writeInt16LE(rows, 2);
+  frame(t, 'r', b);
+}
 function stopTerm(t) { try { spawn('taskkill', ['/PID', String(t.proc.pid), '/T', '/F'], { windowsHide: true }); } catch { /* already gone */ } }
-setInterval(() => {                                   // a console nobody is looking at any more is closed
-  for (const t of terms.values()) { if (t.readers.size) t.idle = Date.now(); else if (Date.now() - t.idle > 300000) stopTerm(t); }
-}, 15000).unref();
+setInterval(() => {                                   // a console nobody has looked at for 8 hours is closed
+  for (const t of terms.values()) { if (t.readers.size) t.idle = Date.now(); else if (Date.now() - t.idle > 8 * 3600e3) stopTerm(t); }
+}, 60000).unref();
 
 /* ---------- apps and windows (helper/winbridge.ps1, one PowerShell kept running) ---------- */
 let bridge = null;
@@ -262,7 +272,7 @@ async function openInZone(item, scr, reuse) {
 
 /* ---------- requests ---------- */
 const routes = {
-  '/ping': async () => ({ ok: true, version: 2, apps: true, home: os.homedir(), backups }),
+  '/ping': async () => ({ ok: true, version: 3, apps: true, pty: true, home: os.homedir(), backups }),
   '/fs/copy': async b => transfer(b.from, b.to, false),
   '/fs/move': async b => transfer(b.from, b.to, true),
   '/fs/rename': async b => {
@@ -328,14 +338,21 @@ const routes = {
     for (const n of old) await fsp.rm(path.join(backups, n), { force: true });
     return { file };
   },
-  '/term/start': async b => startTerm(b.cwd, b.key),
-  '/term/write': async b => {
+  '/term/start': async b => startTerm(b),
+  '/term/write': async b => {                         // keys and pasted text, as the terminal sends them
     const t = terms.get(b.id);
     if (!t) throw new Error('that console has ended');
-    t.proc.stdin.write(String(b.text) + '\n"<<HB:$((Get-Location).Path)>>"\n');
+    const data = Buffer.from(String(b.data ?? ''), 'utf8');
+    if (data.length > 4e6) throw new Error('too much at once');
+    frame(t, 'd', data);
     return { ok: true };
   },
-  '/term/stop': async b => { const t = terms.get(b.id); if (t) stopTerm(t); return { ok: true }; },
+  '/term/resize': async b => { const t = terms.get(b.id); if (t) resizeTerm(t, b.cols, b.rows); return { ok: true }; },
+  '/term/stop': async b => {                          // by session, or by the card it belongs to
+    const t = terms.get(b.id) || (typeof b.key === 'string' && b.key ? [...terms.values()].find(x => x.key === b.key) : null);
+    if (t) stopTerm(t);
+    return { ok: true };
+  },
   '/apps/list': async b => ({ apps: await appList(!!b.fresh) }),
   '/apps/icons': async b => ({ icons: await iconsFor([].concat(b.targets || []), Math.min(256, Math.max(16, +b.size || 48))) }),
   '/apps/launch': async b => { await bridgeAsk({ op: 'launch', ...(await launchable(b)) }); return { ok: true }; },
@@ -369,7 +386,7 @@ const server = http.createServer((req, res) => {
     if (!t) { send(404, { error: 'that console has ended' }); return; }
     res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', ...cors });
     res.flushHeaders();
-    for (const msg of t.log) res.write(JSON.stringify(msg) + '\n');
+    for (const line of t.log) res.write(line);                           // what it showed lately, for a tab that opens it now
     t.readers.add(res);
     res.on('close', () => { t.readers.delete(res); t.idle = Date.now(); });   // the board stopped listening
     return;

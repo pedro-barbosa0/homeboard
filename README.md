@@ -65,8 +65,15 @@ this computer only and answers only the Homeboard extension (secret key in
 With it running: in a file browser card, right-click files for Open, Copy, Cut,
 Rename, Delete (to the Recycle Bin); right-click empty space for Paste and New
 folder; drag a file onto another file browser to move it (hold Ctrl to copy).
-The **Console** button adds a PowerShell card (Ctrl+C restarts it; full-screen
-terminal programs are not supported). A backup is written once a day to
+The **Console** button adds a real terminal card: the same terminal VS Code uses
+(xterm.js, in `vendor\xterm`) on Windows' own pseudo-console (`helper\conpty.ps1`),
+so full-screen programs work — **Claude Code**, vim, progress bars, colours —
+and it follows the card's size. Ctrl+C copies selected text and otherwise stops
+what runs; Ctrl+V pastes; Ctrl + scroll (on the selected card) changes the text
+size. Right-click → **Shell** picks Windows PowerShell, PowerShell 7 or Command
+Prompt. A console keeps running when the board closes (a long job or Claude Code
+can carry on) and shows its recent output when opened again; ↻ starts a fresh one;
+unused consoles end after 8 hours. A backup is written once a day to
 `backups\` in this folder (two weeks are kept). The helper also starts apps and
 places windows for the **Apps** and **Workspace** cards (through
 `helper\winbridge.ps1`, which only lists, starts and moves windows — it never
@@ -286,6 +293,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `mdview.js`, `mdview.css` | Shows `.md` files opened in Edge formatted (runs only on local `.md` files) |
 | `tap.js` | Runs in pages but stays idle until a board's sound visualiser asks: then it reads the loudness of what that page plays (the sound itself keeps playing as before) |
 | `frame.js`, `noscroll.css` | Runs inside Homeboard website windows only: tells the board a site loaded or went to a sign-in page, passes Ctrl + scroll / plus / minus on as the window's zoom, reports the page and scroll position (and scrolls back there next time), and hides the site’s scroll bars when asked |
+| `vendor/xterm/` | xterm.js 6.0.0 and its fit add-on (MIT licence, files as published on npm), which draws the console card |
 | `markdown.js` | Markdown rendering, HTML-to-Markdown, and the zip writer for exports |
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
 | `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle, sound visualiser, YouTube Music styles |

@@ -6,6 +6,7 @@ const [ext, profile, outDir, sandbox] = process.argv.slice(2);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const results = [];
 const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass ? 'PASS ' : 'FAIL ') + name + (info ? '  -> ' + String(info).slice(0, 260) : '')); };
+const TM = 'tm' + Date.now().toString(36);                // a new console card each run (consoles outlive the board)
 (async () => {
   // a sandbox to move things around in
   const A = path.join(sandbox, 'a'), B = path.join(sandbox, 'b');
@@ -43,7 +44,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     await ev(`chrome.storage.local.set({ 'homeboard:v1': { v: 1, settings: {}, active: 'a', lastBackup: '', boards: [{ id: 'a', name: 'Files', view: { x: 0, y: 0, z: 1 }, strings: [], cards: [
       { id: 'fa', type: 'files', title: 'Folder A', named: true, x: 90, y: 90, w: 430, h: 330, z: 1, path: ${JSON.stringify(url(A))} },
       { id: 'fb', type: 'files', title: 'Folder B', named: true, x: 550, y: 90, w: 430, h: 330, z: 2, path: ${JSON.stringify(url(B))} },
-      { id: 'tm', type: 'term', title: 'Console', x: 90, y: 450, w: 890, h: 330, z: 3, cwd: ${JSON.stringify(A)} } ] }] } })`);
+      { id: '${TM}', type: 'term', title: 'Console', x: 90, y: 450, w: 890, h: 330, z: 3, cwd: ${JSON.stringify(A)} } ] }] } })`);
     await send('Page.reload', {}, sid);
     await sleep(3000);
     await send('Page.bringToFront', {}, sid);
@@ -91,19 +92,54 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     const refused = await ev(`(async () => { const t = (await (await fetch(chrome.runtime.getURL('helper/token.txt'))).text()).trim(); const r = await fetch('http://127.0.0.1:8767/fs/trash', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ paths: ['C:\\\\Windows'] }) }); return r.status + ' ' + (await r.json()).error; })()`);
     ok('protected folders cannot be deleted', refused.startsWith('400') && /protected/.test(refused), refused);
 
-    // console
-    await sleep(800);
-    const prompt0 = await ev(`document.querySelector('.term-prompt').textContent`);
-    await ev(`document.querySelector('.term-in').focus()`);
-    await type('echo hello-from-test'); await key('Enter', 13);
-    await sleep(1800);
-    await type('cd ..'); await key('Enter', 13);
-    await sleep(1800);
-    await type('Get-ChildItem -Name'); await key('Enter', 13);
-    await sleep(2200);
-    const term = await ev(`({ out: document.querySelector('.term-out').textContent, prompt: document.querySelector('.term-prompt').textContent })`);
-    const st = await ev(`chrome.storage.local.get('homeboard:v1').then(r => r['homeboard:v1'])`);
-    ok('console: commands run, the folder is remembered', prompt0.endsWith('\\a>') && /hello-from-test\n/.test(term.out.replace(/\r/g, '')) && term.prompt.endsWith(path.basename(sandbox) + '>') && !term.prompt.includes('<') && /\ba\b[\s\S]*\bb\b/.test(term.out) && st.boards[0].cards.find(c => c.id === 'tm').cwd === sandbox, term.prompt);
+    // console: a real terminal (xterm.js on a pseudo-console)
+    await send('Page.bringToFront', {}, sid);                 // the terminal only draws while the page is on screen
+    const termRows = () => ev(`[...document.querySelectorAll('[data-id="${TM}"] .xterm-rows > div')].map(r => r.textContent.replace(/\u00a0/g, ' ').trimEnd())`);
+    let screen = [];
+    for (let i = 0; i < 30 && !screen.join('').includes(A + '>'); i++) { await sleep(500); screen = await termRows(); }
+    ok('console: a prompt appears, in the card’s folder', screen.join('').includes(A + '>'), JSON.stringify(screen.filter(Boolean).slice(-3)));
+    await ev(`document.querySelector('[data-id="${TM}"] .xterm-helper-textarea').focus()`);
+    const enter = async text => {                            // as a person would: the console in front and focused, then type
+      await send('Page.bringToFront', {}, sid);
+      await ev(`document.querySelector('[data-id="${TM}"] .xterm-helper-textarea').focus()`);
+      await type(text); await key('Enter', 13);
+    };
+    await enter('echo hello-from-test; [Console]::IsOutputRedirected; $Host.UI.RawUI.WindowSize.Width; $env:CLAUDECODE + "|end"');
+    await sleep(2500);
+    screen = await termRows();
+    const cols = await ev(`Math.floor(document.querySelector('[data-id="${TM}"] .xterm-screen').getBoundingClientRect().width / (document.querySelector('[data-id="${TM}"] .xterm-screen').getBoundingClientRect().width / document.querySelector('[data-id="${TM}"] .xterm-rows > div').textContent.length || 1))`);
+    const real = /hello-from-test\s*False\s*(\d+)\s*\|end/.exec(screen.map(l => l.trim()).join(' '));
+    ok('console: a real terminal (not redirected, the card’s width, a clean environment)', real && +real[1] > 40, JSON.stringify(screen.filter(Boolean).slice(-6)));
+    await enter('cls; Write-Host "$([char]27)[6;12HPLACED-HERE"; Start-Sleep 2');
+    await sleep(1500);
+    screen = await termRows();
+    ok('console: programs can draw anywhere on the screen (what full-screen programs need)', (screen[5] || '').indexOf('PLACED-HERE') === 11, JSON.stringify(screen.slice(4, 7)));
+    await sleep(1500);
+    await enter('cd ..');
+    await enter('Get-ChildItem -Name');
+    await sleep(2500);
+    screen = await termRows();
+    ok('console: commands run and change folder', screen.join('').includes(path.basename(sandbox) + '>') && screen.some(l => /^a$/.test(l.trim())) && screen.some(l => /^b$/.test(l.trim())), JSON.stringify(screen.filter(Boolean).slice(-6)));
+    // Ctrl+C stops what runs
+    await enter('Start-Sleep 30; echo not-stopped');
+    await sleep(1200);
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 }, sid);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 }, sid);
+    await sleep(1500);
+    await enter('echo after-stop');
+    await sleep(1500);
+    screen = await termRows();
+    ok('console: Ctrl+C stops what runs', screen.some(l => /^after-stop$/.test(l.trim())) && !screen.some(l => /^not-stopped$/.test(l.trim())), JSON.stringify(screen.filter(Boolean).slice(-4)));
+    // Claude Code starts with its own interface (only if it is installed)
+    const hasClaude = require('child_process').spawnSync('where.exe', ['claude'], { encoding: 'utf8' }).status === 0;
+    if (hasClaude) {
+      await enter('claude');
+      let ui = '';
+      for (let i = 0; i < 24 && !/trust|Claude Code|Welcome|╭/i.test(ui); i++) { await sleep(500); ui = (await termRows()).join('\n'); }
+      ok('console: Claude Code opens its interface', /trust|Claude Code|Welcome|╭/i.test(ui) && !/Input must be provided/.test(ui), JSON.stringify(ui.split('\n').filter(Boolean).slice(-6)));
+      for (let i = 0; i < 3; i++) { await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 }, sid); await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, modifiers: 2 }, sid); await sleep(500); }
+    } else console.log('SKIP Claude Code is not installed');
+    await ev(`(async () => { const t = (await (await fetch(chrome.runtime.getURL('helper/token.txt'))).text()).trim(); await fetch('http://127.0.0.1:8767/term/stop', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ key: '${TM}' }) }); })()`);
 
     fs.mkdirSync(outDir, { recursive: true });
     const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid);
