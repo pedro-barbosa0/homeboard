@@ -291,6 +291,7 @@ function normalize(s) {
   if (typeof s.settings.bgImage !== 'string') s.settings.bgImage = '';
   for (const k of COLOR_KEYS) if (!/^#[0-9a-f]{6}$/i.test(s.settings[k] || '')) s.settings[k] = null;
   const list = v => (Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : []);
+  s.viewMap = list(s.viewMap).filter(t => t && typeof t.board === 'string' && typeof t.view === 'string').map(t => ({ board: t.board, view: t.view, x: Math.round(+t.x || 0), y: Math.round(+t.y || 0) })).slice(0, 120);
   s.tour = list(s.tour).filter(t => t && typeof t.board === 'string' && typeof t.view === 'string').map(t => ({ board: t.board, view: t.view })).slice(0, 60);
   s.looks = list(s.looks).map(l => ({ id: String(l.id || uid()), name: String(l.name || 'Look').slice(0, 30), s: cleanLook(l.s) }));
   s.boards = list(s.boards);
@@ -803,7 +804,7 @@ function viewsMenu(x, y) {
     { label: 'In the Ctrl+↑ / ↓ list', checked: inTour(b, p) >= 0, action: () => toggleTour(b, p) },
     { label: 'Copy link to this view', icon: 'links', action: () => copyBoardLink(`homeboard:board/${b.id}/view/${p.id}`) },
     { label: 'Rename…', icon: 'edit', action: () => renameView(p) },
-    { label: 'Delete', icon: 'trash', danger: true, action() { b.views.splice(b.views.indexOf(p), 1); if (b.home === p.id) b.home = null; save(); } },
+    { label: 'Delete', icon: 'trash', danger: true, action() { b.views.splice(b.views.indexOf(p), 1); if (b.home === p.id) b.home = null; state.viewMap = state.viewMap.filter(t => !(t.board === b.id && t.view === p.id)); save(); } },
   ];
   openMenu(x, y, [
     { label: b.home ? 'Back to the start view' : 'Back to everything', icon: 'home', action: goHome },
@@ -820,7 +821,8 @@ function viewsMenu(x, y) {
       },
     },
     b.views.length > 0 && { label: 'Manage views', icon: 'edit', items: b.views.map(p => ({ label: p.name, icon: 'views', items: one(p) })) },
-    { label: `Ctrl+↑ / ↓ list · ${state.tour.length ? state.tour.length + ' views' : 'every view'}`, icon: 'views', items: tourItems() },
+    { label: 'View map… (Ctrl+M)', icon: 'layers', action: () => viewMapOpen() },
+    !state.viewMap.length && { label: `Ctrl+↑ / ↓ list · ${state.tour.length ? state.tour.length + ' views' : 'every view'}`, icon: 'views', items: tourItems() },
     { label: 'Lock the view (no moving or zooming)', checked: b.frozen, action() { b.frozen = !b.frozen; document.body.classList.toggle('view-locked', b.frozen); save(); } },
     { info: 'Home: the start view · 1–9: saved views · Ctrl+← / →: this board’s views · Ctrl+↑ / ↓: your list, across boards.' },
   ]);
@@ -871,6 +873,140 @@ function goToStop({ b, p }) {
   lastStop = { board: b.id, view: p.id };
   return true;
 }
+/* ---- the view map ---- */
+const mapTiles = () => state.viewMap.map(t => { const b = boardById(t.board), p = b && (b.views || []).find(v => v.id === t.view); return b && p ? { ...t, b, p } : null; }).filter(Boolean);
+function stepMap(dx, dy) {                            // the nearest tile in that direction, like moving between tiles with a TV remote
+  const tiles = mapTiles();
+  if (!tiles.length) return false;
+  let cur = lastStop && tiles.find(t => t.board === lastStop.board && t.view === lastStop.view);
+  if (!cur) cur = tiles.find(t => t.board === state.active) || null;
+  let next = null;
+  if (!cur) next = tiles.slice().sort((a, b) => a.y - b.y || a.x - b.x)[0];
+  else {
+    let best = Infinity;
+    for (const t of tiles) {
+      const ax = t.x - cur.x, ay = t.y - cur.y, along = dx ? ax * dx : ay * dy, across = dx ? Math.abs(ay) : Math.abs(ax);
+      if (along <= 0) continue;
+      const score = along + across * 2.5;
+      if (score < best) { best = score; next = t; }
+    }
+  }
+  if (!next) { hud('Nothing further that way on the view map'); return true; }
+  goToStop(next);
+  hud(`${next.b.name} › ${next.p.name}`);
+  if (mapEl && !mapEl.hidden) drawMap();
+  return true;
+}
+let mapEl = null, drawMap = () => {};
+function viewMapOpen() {
+  closeMenu?.();
+  if (!mapEl) {
+    mapEl = h('div', { id: 'viewmap', role: 'dialog', 'aria-label': 'View map', hidden: true });
+    mapEl.addEventListener('pointerdown', e => { if (e.target === mapEl) mapEl.hidden = true; });
+    mapEl.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); mapEl.hidden = true; } });
+    document.body.append(mapEl);
+  }
+  mapEl.hidden = false;
+  drawMap();
+  mapEl.querySelector('.vm-panel')?.focus();
+}
+/* a small sketch of what a view shows: the cards inside it */
+function viewSketch(b, p, w, hh) {
+  const vw = innerWidth / p.z, vh = innerHeight / p.z, x0 = p.cx - vw / 2, y0 = p.cy - vh / 2;
+  const sv = svg('svg', { viewBox: `0 0 ${w} ${hh}`, width: w, height: hh, class: 'vm-sketch' });
+  for (const c of b.cards) {
+    const x = (c.x - x0) / vw * w, y = (c.y - y0) / vh * hh, cw = c.w / vw * w, ch = c.h / vh * hh;
+    if (x > w || y > hh || x + cw < 0 || y + ch < 0) continue;
+    sv.append(svg('rect', { x: x.toFixed(1), y: y.toFixed(1), width: Math.max(2, cw).toFixed(1), height: Math.max(2, ch).toFixed(1), rx: 2,
+      fill: c.color ? COLORS[c.color] : c.type === 'web' ? 'var(--accent)' : 'currentColor', 'fill-opacity': c.type === 'web' ? .55 : .3 }));
+  }
+  return sv;
+}
+drawMap = function () {
+  if (!mapEl || mapEl.hidden) return;
+  const CW = 168, CH = 112, GAP = 10;
+  const tiles = mapTiles();
+  const placed = new Set(tiles.map(t => t.board + '/' + t.view));
+  const minX = Math.min(0, ...tiles.map(t => t.x)) - 1, minY = Math.min(0, ...tiles.map(t => t.y)) - 1;
+  const maxX = Math.max(2, ...tiles.map(t => t.x)) + 1, maxY = Math.max(1, ...tiles.map(t => t.y)) + 1;
+  const cols = maxX - minX + 1, rows = maxY - minY + 1;
+  const area = h('div', { class: 'vm-area' });
+  area.style.width = cols * (CW + GAP) + 'px'; area.style.height = rows * (CH + GAP) + 'px';
+  const cellAt = (px, py) => { const r = area.getBoundingClientRect(); return { x: Math.floor((px - r.left) / (CW + GAP)) + minX, y: Math.floor((py - r.top) / (CH + GAP)) + minY }; };
+  const put = (board, view, cell) => {                // place (or move) a view at a cell; whatever was there takes its old place
+    const map = state.viewMap, me = map.find(t => t.board === board && t.view === view), other = map.find(t => t.x === cell.x && t.y === cell.y && t !== me);
+    if (other) { if (me) { other.x = me.x; other.y = me.y; } else map.splice(map.indexOf(other), 1); }
+    if (me) { me.x = cell.x; me.y = cell.y; } else map.push({ board, view, x: cell.x, y: cell.y });
+    save(); drawMap();
+  };
+  for (let gy = minY; gy <= maxY; gy++) for (let gx = minX; gx <= maxX; gx++) {
+    const slot = h('div', { class: 'vm-slot' });
+    Object.assign(slot.style, { left: (gx - minX) * (CW + GAP) + 'px', top: (gy - minY) * (CH + GAP) + 'px', width: CW + 'px', height: CH + 'px' });
+    area.append(slot);
+  }
+  const here = lastStop && tiles.find(t => t.board === lastStop.board && t.view === lastStop.view);
+  for (const t of tiles) {
+    const tile = h('div', { class: 'vm-tile' + (t === here ? ' here' : ''), tabindex: '0', title: `${t.b.name} › ${t.p.name}\nClick to go there · drag to move · right-click to take it off` },
+      viewSketch(t.b, t.p, CW - 12, CH - 40), h('div', { class: 'vm-name' }, h('b', null, t.p.name), h('span', null, t.b.name)));
+    if (t.b.color) tile.style.setProperty('--tint', COLORS[t.b.color]);
+    Object.assign(tile.style, { left: (t.x - minX) * (CW + GAP) + 'px', top: (t.y - minY) * (CH + GAP) + 'px', width: CW + 'px', height: CH + 'px' });
+    tile.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const sx = e.clientX, sy = e.clientY, ox = parseFloat(tile.style.left), oy = parseFloat(tile.style.top);
+      let moved = false;
+      const mv = ev => { if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return; moved = true; tile.classList.add('drag'); tile.style.left = ox + ev.clientX - sx + 'px'; tile.style.top = oy + ev.clientY - sy + 'px'; };
+      const up = ev => {
+        removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+        if (!moved) { mapEl.hidden = true; goToStop(t); hud(`${t.b.name} › ${t.p.name}`); return; }
+        const r = tile.getBoundingClientRect();
+        put(t.board, t.view, cellAt(r.left + r.width / 2, r.top + r.height / 2));
+      };
+      addEventListener('pointermove', mv); addEventListener('pointerup', up);
+    });
+    tile.addEventListener('contextmenu', e => { e.preventDefault(); state.viewMap.splice(state.viewMap.findIndex(x => x.board === t.board && x.view === t.view), 1); save(); drawMap(); });
+    tile.addEventListener('keydown', e => { if (e.key === 'Enter') { mapEl.hidden = true; goToStop(t); } });
+    area.append(tile);
+  }
+  // the views not on the map yet, to drag onto it (or click to add at the end)
+  const spare = state.boards.flatMap(b => (b.views || []).filter(p => !placed.has(b.id + '/' + p.id)).map(p => ({ b, p })));
+  const side = h('div', { class: 'vm-side' }, h('div', { class: 'vm-head' }, 'Views not on the map'),
+    ...spare.map(({ b, p }) => {
+      const it = h('div', { class: 'vm-spare', title: 'Drag onto the map, or click to add it at the end' }, h('b', null, p.name), h('span', null, b.name));
+      it.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const ghost = it.cloneNode(true); ghost.classList.add('vm-ghost'); document.body.append(ghost);
+        const sx = e.clientX, sy = e.clientY;
+        let moved = false;
+        const mv = ev => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 5) moved = true; ghost.style.transform = `translate(${ev.clientX + 8}px, ${ev.clientY + 8}px)`; };
+        const up = ev => {
+          removeEventListener('pointermove', mv); removeEventListener('pointerup', up); ghost.remove();
+          const r = area.getBoundingClientRect();
+          if (moved && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) put(b.id, p.id, cellAt(ev.clientX, ev.clientY));
+          else if (!moved) { const t2 = mapTiles(); put(b.id, p.id, { x: t2.length ? Math.max(...t2.map(t => t.x)) + 1 : 0, y: t2.length ? t2[t2.length - 1].y : 0 }); }
+        };
+        addEventListener('pointermove', mv); addEventListener('pointerup', up);
+      });
+      return it;
+    }),
+    !spare.length && h('div', { class: 'vm-none' }, state.boards.some(b => (b.views || []).length) ? 'Every saved view is on the map.' : 'No saved views yet: the bookmark button at the bottom saves the view you are looking at.'));
+  const rowsPerBoard = () => {
+    state.viewMap = [];
+    let y = 0;
+    const walk = parent => { for (const b of kidsOf(parent)) { if ((b.views || []).length) { b.views.forEach((p, x) => state.viewMap.push({ board: b.id, view: p.id, x, y })); y++; } walk(b.id); } };
+    walk(null);
+    save(); drawMap();
+  };
+  mapEl.replaceChildren(h('div', { class: 'vm-panel', tabindex: '-1' },
+    h('div', { class: 'vm-top' }, h('b', null, 'View map'),
+      h('span', { class: 'vm-help' }, 'Ctrl + ← → ↑ ↓ go to the view in that direction. Drag views to arrange them.'),
+      h('button', { class: 'btn', type: 'button', onclick: rowsPerBoard, title: 'Each board a row, its views from left to right' }, 'One row per board'),
+      state.viewMap.length > 0 && h('button', { class: 'btn', type: 'button', onclick() { const old = state.viewMap; state.viewMap = []; save(); drawMap(); toast('The view map is empty: Ctrl+arrows step through views as before.', 'Undo', () => { state.viewMap = old; save(); drawMap(); }); } }, 'Clear'),
+      h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Close', title: 'Close (Esc)', onclick() { mapEl.hidden = true; } }, icon('x'))),
+    h('div', { class: 'vm-body' }, h('div', { class: 'vm-scroll' }, area), side)));
+};
+
 function stepView(dir, across) {
   const stops = across ? tourStops() : (board().views || []).map(p => ({ b: board(), p }));
   if (!stops.length) { hud(across ? 'No saved views yet: the bookmark button at the bottom saves one' : 'This board has no saved views yet'); return; }
@@ -4071,8 +4207,10 @@ function wire() {
         const z = c.zoom || 1, step = c.type === 'web' ? 1.1 : 1.15;
         if (e.key === '0') { delete c.grow; setTextSize(c, 1); } else setTextSize(c, e.key === '-' || e.key === '_' ? z / step : z * step);
       }
+      else if (/^Arrow/.test(e.key) && stepMap(e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0, e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0)) e.preventDefault();
       else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); stepView(e.key === 'ArrowRight' ? 1 : -1, false); }
       else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); stepView(e.key === 'ArrowDown' ? 1 : -1, true); }
+      else if (k === 'm') { e.preventDefault(); viewMapOpen(); }
       else if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoStep(); }
       else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redoStep(); }
       return;

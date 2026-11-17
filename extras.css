@@ -370,3 +370,33 @@ body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
 .np-none { padding: 6px 8px 10px; color: var(--muted); font-size: .85em; }
 .np-cast { flex: none; width: 30px !important; height: 30px !important; opacity: .75; }
 .np-cast:hover { opacity: 1; }
+
+/* the view map */
+#viewmap { position: fixed; inset: 0; z-index: 980; display: grid; place-items: center; background: rgb(0 0 0 / .45); }
+#viewmap[hidden] { display: none; }
+.vm-panel { width: min(1100px, calc(100vw - 48px)); height: min(640px, calc(100vh - 60px)); display: flex; flex-direction: column; border-radius: 14px;
+  background: var(--raise); border: 1px solid var(--border); box-shadow: 0 30px 90px rgb(0 0 0 / .5); color: var(--text); outline: none; }
+.vm-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex: none; }
+.vm-help { flex: 1; color: var(--muted); font-size: .85em; }
+.vm-body { flex: 1; min-height: 0; display: flex; }
+.vm-scroll { flex: 1; overflow: auto; display: grid; place-items: center; padding: 18px; background: color-mix(in srgb, var(--text) 3%, transparent); }
+.vm-area { position: relative; }
+.vm-slot { position: absolute; border-radius: 10px; border: 1.5px dashed color-mix(in srgb, var(--text) 10%, transparent); }
+.vm-tile { position: absolute; box-sizing: border-box; padding: 6px; border-radius: 10px; cursor: grab; user-select: none;
+  background: color-mix(in srgb, var(--tint, var(--accent)) 16%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--tint, var(--accent)) 45%, transparent);
+  display: flex; flex-direction: column; gap: 4px; color: var(--muted); transition: box-shadow .15s; }
+.vm-tile:hover, .vm-tile:focus-visible { border-color: var(--tint, var(--accent)); outline: none; }
+.vm-tile.here { box-shadow: 0 0 0 3px var(--accent); }
+.vm-tile.drag { z-index: 5; cursor: grabbing; box-shadow: 0 14px 30px rgb(0 0 0 / .45); }
+.vm-sketch { border-radius: 6px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.vm-name { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.vm-name b, .vm-name span, .vm-spare b, .vm-spare span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vm-name b { color: var(--text); font-size: .85em; }
+.vm-name span { font-size: .72em; }
+.vm-side { width: 220px; flex: none; overflow: auto; border-left: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+.vm-head { font-size: .72em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 4px 4px 6px; }
+.vm-spare { display: flex; flex-direction: column; padding: 7px 9px; border-radius: 8px; cursor: grab; background: color-mix(in srgb, var(--text) 6%, transparent); user-select: none; }
+.vm-spare span { font-size: .78em; color: var(--muted); }
+.vm-spare:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.vm-ghost { position: fixed; left: 0; top: 0; z-index: 1100; pointer-events: none; width: 180px; box-shadow: 0 10px 26px rgb(0 0 0 / .45); background: var(--raise); }
+.vm-none { color: var(--muted); font-size: .85em; padding: 6px; }

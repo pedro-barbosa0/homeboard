@@ -219,7 +219,12 @@ in the views menu, **Ctrl+↑ / ↓ list** shows it (reorder with Earlier / Late
 this board's views, clear it); a view's **In the Ctrl+↑ / ↓ list** tick (Manage
 views) adds or removes it. Until you make a list, Ctrl+↑ / ↓ go through every
 view of every board in the order of the boards. A small label shows where you
-landed. **Tab** (when not typing) opens the board tree for the arrows, like a
+landed. **The view map** (views menu → View map…, or **Ctrl+M**) lays your saved views
+out in 2D, like the screens in Windows’ display settings: each view is a tile with a
+sketch of its cards; drag tiles to arrange them, drag views from the side list onto
+it (from any board), right-click a tile to take it off, click one to go there;
+**One row per board** fills it in at once. With views on the map, **Ctrl + ← → ↑ ↓**
+go to the view in that direction on the map, across boards. **Tab** (when not typing) opens the board tree for the arrows, like a
 file tree: **↑ / ↓** the boards on the same level, **→** into the boards inside,
 **←** back out to the parent; each board opens as you reach it, and **Enter**,
 **Esc** or **Tab** returns to the board.
@@ -323,6 +328,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
 | `dev/webzoomtest.js` | Checks zooming a website window from inside the site, and coming back to the same page and scroll position |
+| `dev/maptest.js` | Checks the view map: laying out, dragging tiles, Ctrl+arrows by direction |
 | `dev/keystest.js` | Checks Ctrl+arrows through views and the list, and Tab + arrows through the board tree |
 | `dev/mediatest.js` | Checks Now playing, playing on across boards, pausing a board window and another Edge tab, and finding media |
 | `dev/peektest.js` | Checks peeking at links, files dropped on the board, and the search finder |
