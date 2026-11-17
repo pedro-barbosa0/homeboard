@@ -314,3 +314,16 @@ body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
 .finder-kind { flex: none; font-size: .72em; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 #finder mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 .finder-none { padding: 8px 10px 6px; color: var(--muted); font-size: .85em; }
+
+/* where the keys took you */
+#hud {
+  position: fixed; left: 50%; bottom: 96px; z-index: 1030; transform: translate(-50%, 8px); opacity: 0; pointer-events: none;
+  padding: 8px 16px; border-radius: 999px; background: var(--raise); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 12px 34px rgb(0 0 0 / .4); font-weight: 600; white-space: nowrap; transition: opacity .16s ease, transform .16s ease;
+}
+#hud.show { opacity: 1; transform: translate(-50%, 0); }
+/* the board tree driven by the keyboard */
+#tabs.keys { width: 264px; }
+#tabs.keys .tab:focus-visible, #tabs.keys .tab:focus { box-shadow: inset 0 0 0 2px var(--accent); color: var(--text); }
+.tab.bump { animation: tab-bump .22s ease; }
+@keyframes tab-bump { 0%, 100% { transform: none; } 35% { transform: translateX(4px); } 70% { transform: translateX(-3px); } }

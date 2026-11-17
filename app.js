@@ -290,6 +290,7 @@ function normalize(s) {
   if (typeof s.settings.bgImage !== 'string') s.settings.bgImage = '';
   for (const k of COLOR_KEYS) if (!/^#[0-9a-f]{6}$/i.test(s.settings[k] || '')) s.settings[k] = null;
   const list = v => (Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : []);
+  s.tour = list(s.tour).filter(t => t && typeof t.board === 'string' && typeof t.view === 'string').map(t => ({ board: t.board, view: t.view })).slice(0, 60);
   s.looks = list(s.looks).map(l => ({ id: String(l.id || uid()), name: String(l.name || 'Look').slice(0, 30), s: cleanLook(l.s) }));
   s.boards = list(s.boards);
   if (!s.boards.length) return null;
@@ -792,13 +793,14 @@ function viewsMenu(x, y) {
     { label: 'Go there', icon: 'arrow', action: () => goTo(viewOf(p)) },
     { label: 'Make it the start view', checked: b.home === p.id, action() { b.home = b.home === p.id ? null : p.id; save(); } },
     { label: 'Replace with what is on screen now', icon: 'reload', action() { Object.assign(p, viewHere()); save(); toast(`“${p.name}” now shows this.`); } },
+    { label: 'In the Ctrl+↑ / ↓ list', checked: inTour(b, p) >= 0, action: () => toggleTour(b, p) },
     { label: 'Copy link to this view', icon: 'links', action: () => copyBoardLink(`homeboard:board/${b.id}/view/${p.id}`) },
     { label: 'Rename…', icon: 'edit', action: () => renameView(p) },
     { label: 'Delete', icon: 'trash', danger: true, action() { b.views.splice(b.views.indexOf(p), 1); if (b.home === p.id) b.home = null; save(); } },
   ];
   openMenu(x, y, [
     { label: b.home ? 'Back to the start view' : 'Back to everything', icon: 'home', action: goHome },
-    ...b.views.map((p, i) => ({ label: `${p.name}${b.home === p.id ? '  · start' : ''}`, icon: 'views', action: () => goTo(viewOf(p)), key: i })),
+    ...b.views.map((p, i) => ({ label: `${p.name}${b.home === p.id ? '  · start' : ''}`, icon: 'views', action: () => goToStop({ b, p }), key: i })),
     { sep: true },
     {
       label: 'Save this view', icon: 'plus',
@@ -811,9 +813,74 @@ function viewsMenu(x, y) {
       },
     },
     b.views.length > 0 && { label: 'Manage views', icon: 'edit', items: b.views.map(p => ({ label: p.name, icon: 'views', items: one(p) })) },
+    { label: `Ctrl+↑ / ↓ list · ${state.tour.length ? state.tour.length + ' views' : 'every view'}`, icon: 'views', items: tourItems() },
     { label: 'Lock the view (no moving or zooming)', checked: b.frozen, action() { b.frozen = !b.frozen; document.body.classList.toggle('view-locked', b.frozen); save(); } },
-    { info: 'Home goes to the start view; keys 1–9 go to the saved views in order.' },
+    { info: 'Home: the start view · 1–9: saved views · Ctrl+← / →: this board’s views · Ctrl+↑ / ↓: your list, across boards.' },
   ]);
+}
+
+/* ---- moving between views with the keyboard ----
+   Ctrl+← / → step through this board's saved views. Ctrl+↑ / ↓ step through "the list": views from any boards,
+   in the order you set (until you set one, every board's views in the order of the boards). */
+const inTour = (b, p) => state.tour.findIndex(t => t.board === b.id && t.view === p.id);
+function tourStops() {
+  const real = state.tour.map(t => { const b = boardById(t.board), p = b && (b.views || []).find(v => v.id === t.view); return b && p ? { b, p } : null; }).filter(Boolean);
+  if (real.length) return real;
+  const out = [];
+  const walk = parent => { for (const b of kidsOf(parent)) { for (const p of b.views || []) out.push({ b, p }); walk(b.id); } };
+  walk(null);
+  return out;
+}
+function toggleTour(b, p) {
+  const i = inTour(b, p);
+  if (i >= 0) state.tour.splice(i, 1);
+  else state.tour.push({ board: b.id, view: p.id });
+  save();
+  hud(i >= 0 ? `“${p.name}” left the Ctrl+↑ / ↓ list` : `“${p.name}” is stop ${state.tour.length} of the Ctrl+↑ / ↓ list`);
+}
+function tourItems() {
+  const stops = state.tour.map((t, i) => ({ t, i, b: boardById(t.board) })).filter(x => x.b && (x.b.views || []).some(v => v.id === x.t.view));
+  return [
+    { info: state.tour.length ? 'Ctrl+↑ / ↓ go through these, in this order:' : 'Now: every view of every board, in order. Tick “In the Ctrl+↑ / ↓ list” on a view (Manage views) to make your own list.' },
+    ...stops.map(({ t, i, b }) => {
+      const p = b.views.find(v => v.id === t.view);
+      return { label: `${i + 1}. ${b.name} › ${p.name}`, icon: 'views', items: [
+        { label: 'Go there', icon: 'arrow', action: () => goToStop({ b, p }) },
+        i > 0 && { label: 'Earlier', icon: 'up', action() { state.tour.splice(i - 1, 0, ...state.tour.splice(i, 1)); save(); } },
+        i < state.tour.length - 1 && { label: 'Later', icon: 'down', action() { state.tour.splice(i + 1, 0, ...state.tour.splice(i, 1)); save(); } },
+        { label: 'Take out of the list', icon: 'x', action() { state.tour.splice(i, 1); save(); } },
+      ] };
+    }),
+    board().views.length > 0 && { sep: true },
+    ...board().views.filter(p => inTour(board(), p) < 0).map(p => ({ label: `Add “${p.name}”`, icon: 'plus', action: () => toggleTour(board(), p) })),
+    state.tour.length > 0 && { label: 'Clear the list (back to every view)', icon: 'trash', danger: true, action() { state.tour = []; save(); } },
+  ];
+}
+let lastStop = null;                                   // { board, view } last reached with the keys
+function goToStop({ b, p }) {
+  collapseCard?.();
+  if (b.id !== state.active) openBoard(b);
+  goTo(viewOf(p));
+  lastStop = { board: b.id, view: p.id };
+  return true;
+}
+function stepView(dir, across) {
+  const stops = across ? tourStops() : (board().views || []).map(p => ({ b: board(), p }));
+  if (!stops.length) { hud(across ? 'No saved views yet: the bookmark button at the bottom saves one' : 'This board has no saved views yet'); return; }
+  let i = lastStop ? stops.findIndex(x => x.b.id === lastStop.board && x.p.id === lastStop.view) : -1;
+  if (i < 0 && !across) i = -1;
+  const next = stops[((i < 0 ? (dir > 0 ? -1 : 0) : i) + dir + stops.length) % stops.length];
+  goToStop(next);
+  hud(across ? `${next.b.name} › ${next.p.name}  ·  ${stops.indexOf(next) + 1}/${stops.length}` : `${next.p.name}  ·  ${stops.indexOf(next) + 1}/${stops.length}`);
+}
+/* a small label in the middle, for a moment: where the keys took you */
+let hudEl = null, hudTimer = 0;
+function hud(text) {
+  if (!hudEl) { hudEl = h('div', { id: 'hud', role: 'status' }); document.body.append(hudEl); }
+  hudEl.textContent = text;
+  hudEl.classList.add('show');
+  clearTimeout(hudTimer);
+  hudTimer = setTimeout(() => hudEl.classList.remove('show'), 1300);
 }
 function zoomAt(cx, cy, factor) {
   if (board().frozen) return;
@@ -3219,7 +3286,10 @@ function renderTabs() {
       t.addEventListener('pointerdown', e => { if (!editing()) dragBoard(e, b, t); });
       t.addEventListener('keydown', e => {
         if (editing()) return;
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBoard(b); }
+        if (/^Arrow(Up|Down|Left|Right)$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); treeStep(b, e.key); return; }
+        if (e.key === 'Tab' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); t.blur(); tabsEl.classList.remove('keys'); return; }
+        if (e.key === 'Enter') { e.preventDefault(); openBoard(b); t.blur(); tabsEl.classList.remove('keys'); return; }
+        if (e.key === ' ') { e.preventDefault(); openBoard(b); }
         else if (e.key === 'F2') renameBoard(b);
         else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { e.preventDefault(); copyBoard(b); }
         else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateBoard(b); }
@@ -3330,6 +3400,31 @@ document.addEventListener('click', e => {             // board links anywhere on
   e.preventDefault(); e.stopPropagation();
   followBoardLink(a.getAttribute('href'));
 }, true);
+
+/* Tab (with nothing being typed) opens the board tree for the keyboard, like a file tree:
+   ↑ / ↓ the boards on the same level, → into the boards inside (opening it if closed), ← back out to the parent.
+   Each board opens as you reach it; Enter, Esc or Tab goes back to the board. */
+function boardKeys() {
+  const row = tabsEl.querySelector(`.tab[data-board="${CSS.escape(state.active)}"]`);
+  if (!row) return;
+  tabsEl.classList.add('keys');
+  row.focus();
+  hud('Boards: ↑ ↓ same level · → inside · ← out · Enter or Esc to stay');
+}
+function treeStep(b, key) {
+  const sibs = kidsOf(b.parent), i = sibs.indexOf(b);
+  let to = null;
+  if (key === 'ArrowUp') to = sibs[i - 1] || null;
+  else if (key === 'ArrowDown') to = sibs[i + 1] || null;
+  else if (key === 'ArrowRight') { const kids = kidsOf(b.id); if (kids.length) { if (b.collapsed) { b.collapsed = false; save(); } to = kids[0]; } }
+  else if (key === 'ArrowLeft') to = boardById(b.parent) || null;
+  if (!to) { const row = tabsEl.querySelector(`.tab[data-board="${CSS.escape(b.id)}"]`); row?.classList.remove('bump'); void row?.offsetWidth; row?.classList.add('bump'); return; }
+  if (to.id !== state.active) { state.active = to.id; renderTabs(); renderBoard(); save(); } else renderTabs();
+  tabsEl.classList.add('keys');
+  tabsEl.querySelector(`.tab[data-board="${CSS.escape(to.id)}"]`)?.focus();
+}
+
+tabsEl.addEventListener('focusout', e => { if (!tabsEl.contains(e.relatedTarget)) tabsEl.classList.remove('keys'); });
 
 function boardMenu(b, x, y) {
   const again = () => { renderTabs(); renderBoard(); save(); };
@@ -3697,6 +3792,8 @@ function wire() {
     if (e.ctrlKey || e.metaKey) {
       const c = selected && board().cards.find(k => k.id === selected), k = e.key.toLowerCase();
       if (c && k === 'd') { e.preventDefault(); duplicateCard(c); }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); stepView(e.key === 'ArrowRight' ? 1 : -1, false); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); stepView(e.key === 'ArrowDown' ? 1 : -1, true); }
       else if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoStep(); }
       else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redoStep(); }
       return;
@@ -3714,7 +3811,8 @@ function wire() {
     }
     else if ((e.key === '+' || e.key === '=') && !e.ctrlKey) { e.preventDefault(); zoomStep(1); }
     else if (e.key === '-' && !e.ctrlKey) { e.preventDefault(); zoomStep(-1); }
-    else if (/^Digit[1-9]$/.test(e.code) && !e.shiftKey) { const p = board().views[+e.code.slice(5) - 1]; if (p) { e.preventDefault(); goTo(viewOf(p)); } }
+    else if (/^Digit[1-9]$/.test(e.code) && !e.shiftKey) { const p = board().views[+e.code.slice(5) - 1]; if (p) { e.preventDefault(); goToStop({ b: board(), p }); } }
+    else if (e.key === 'Tab' && !e.shiftKey && (!document.activeElement || document.activeElement === document.body)) { e.preventDefault(); boardKeys(); }
   });
 
   // persistence across tabs and page lifetime

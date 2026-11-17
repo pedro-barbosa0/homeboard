@@ -191,6 +191,17 @@ a folder, or a **link** to it. Several files at once work too.
 
 **Saved views** — the bookmark button next to the zoom: **Save this view**, jump to saved views, **Back to the start view** (also the **Home** key, or right-click the bookmark button), make any view the start view, and **Lock the view** so the board cannot be moved or zoomed by accident. Keys **1–9** jump to saved views in order. Each board keeps its own.
 
+**Keyboard travel** — **Ctrl+← / →** step through this board's saved views.
+**Ctrl+↑ / ↓** step through *your list* of views, which can come from any boards:
+in the views menu, **Ctrl+↑ / ↓ list** shows it (reorder with Earlier / Later, add
+this board's views, clear it); a view's **In the Ctrl+↑ / ↓ list** tick (Manage
+views) adds or removes it. Until you make a list, Ctrl+↑ / ↓ go through every
+view of every board in the order of the boards. A small label shows where you
+landed. **Tab** (when not typing) opens the board tree for the arrows, like a
+file tree: **↑ / ↓** the boards on the same level, **→** into the boards inside,
+**←** back out to the parent; each board opens as you reach it, and **Enter**,
+**Esc** or **Tab** returns to the board.
+
 **To-do lists** — the small arrow on a task opens its details: steps, notes, a
 link to open later, a due date and a star.
 
@@ -288,6 +299,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/keystest.js` | Checks Ctrl+arrows through views and the list, and Tab + arrows through the board tree |
 | `dev/peektest.js` | Checks peeking at links, files dropped on the board, and the search finder |
 | `dev/taptest.js` | Checks the visualiser hearing another tab by itself, at two sizes |
 | `dev/linkstest.js` | Checks dragging boards, dropping cards on boards, links to boards / views / cards, linked notes |
