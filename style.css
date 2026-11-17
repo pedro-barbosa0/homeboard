@@ -616,24 +616,24 @@ body.panning #world, body.wheel-pan #world { will-change: transform; }
 
 /* ---------- materials (Customize → Style) ---------- */
 body[data-material="frosted"] .card:not(.bare), body[data-material="frosted"] :is(.pill, #menu, #np-panel, #finder) {
-  background: color-mix(in srgb, var(--card-bg, var(--raise)) 50%, transparent);
+  background: color-mix(in srgb, var(--glass, var(--card-bg, var(--raise))) 50%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); border-color: rgba(255, 255, 255, .1);
 }
 body[data-material="liquid"] .card:not(.bare), body[data-material="liquid"] :is(.pill, #menu, #np-panel, #finder) {
   background: radial-gradient(120% 60% at 10% -10%, rgba(255, 255, 255, .2), transparent 50%),
-              linear-gradient(160deg, color-mix(in srgb, var(--card-bg, var(--raise)) 42%, rgba(255, 255, 255, .08)), color-mix(in srgb, var(--card-bg, var(--raise)) 26%, transparent));
+              linear-gradient(160deg, color-mix(in srgb, var(--glass, var(--card-bg, var(--raise))) 42%, rgba(255, 255, 255, .08)), color-mix(in srgb, var(--glass, var(--card-bg, var(--raise))) 26%, transparent));
   -webkit-backdrop-filter: blur(24px) saturate(1.9) brightness(1.04); backdrop-filter: blur(24px) saturate(1.9) brightness(1.04);
   border: 1px solid rgba(255, 255, 255, .24);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -1px 0 rgba(255, 255, 255, .08), inset 0 0 22px rgba(255, 255, 255, .04), 0 16px 44px rgba(0, 0, 0, .32);
 }
 body[data-theme="paper"][data-material="liquid"] .card:not(.bare), body[data-theme="cork"][data-material="liquid"] .card:not(.bare) { border-color: rgba(255, 255, 255, .7); }
 body[data-material="paper"] .card:not(.bare), body[data-material="paper"] :is(.pill, #menu, #np-panel, #finder) {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"), var(--card-bg, var(--raise));
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"), var(--glass, var(--card-bg, var(--raise)));
   -webkit-backdrop-filter: none; backdrop-filter: none; border: 0;
   box-shadow: 0 1px 1px rgba(0, 0, 0, .14), 0 3px 6px rgba(0, 0, 0, .12), 0 12px 24px rgba(0, 0, 0, .14);
 }
 body[data-material="outline"] .card:not(.bare), body[data-material="outline"] :is(.pill, #menu, #np-panel, #finder) {
-  background: color-mix(in srgb, var(--card-bg, var(--raise)) 34%, transparent);
+  background: color-mix(in srgb, var(--glass, var(--card-bg, var(--raise))) 34%, transparent);
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   border: 1.5px solid color-mix(in srgb, var(--accent) 65%, transparent);
   box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 28%, transparent), inset 0 0 14px color-mix(in srgb, var(--accent) 10%, transparent);
@@ -655,3 +655,22 @@ body[data-material="outline"] .card.selected { box-shadow: 0 0 26px color-mix(in
 .style-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: inherit; font: inherit; font-size: .82em; cursor: pointer; }
 .style-chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .scene-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); }
+
+/* clear glass: only light, no colour */
+body[data-glass="clear"][data-material="liquid"] .card:not(.bare), body[data-glass="clear"][data-material="liquid"] :is(.pill, #menu, #np-panel, #finder) {
+  background: radial-gradient(120% 60% at 10% -10%, rgba(255, 255, 255, .22), transparent 50%), linear-gradient(160deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03));
+}
+body[data-glass="clear"][data-material="frosted"] .card:not(.bare), body[data-glass="clear"][data-material="frosted"] :is(.pill, #menu, #np-panel, #finder) { background: rgba(255, 255, 255, .07); }
+/* refraction is put on each element by lens (app.js); while the board moves, plain blur keeps it smooth */
+body.lens:is(.panning, .wheel-pan) #world > .card { backdrop-filter: blur(20px) saturate(1.8) !important; }
+/* the music overlay */
+#fx-layer { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 85; pointer-events: none; }
+/* ambient mode */
+body.ambient :is(#topbar, #dock, #tabs, #zoom, #toast) { opacity: 0; pointer-events: none !important; transition: opacity .5s ease; }
+body.ambient #topbar *, body.ambient #dock *, body.ambient #tabs *, body.ambient #zoom * { pointer-events: none !important; }
+body.ambient.ambient-still, body.ambient.ambient-still * { cursor: none !important; }
+
+/* the cover of what plays, blurred big behind everything (backdrop "Cover art") */
+#scene-art { position: absolute; inset: -80px; background: center / cover no-repeat; filter: blur(70px) saturate(1.5) brightness(.5); transform: scale(1.1); transition: background-image .8s ease; }
+#scene-art[hidden] { display: none; }
+body[data-theme="paper"] #scene-art, body[data-theme="cork"] #scene-art { filter: blur(70px) saturate(1.3) brightness(1.05) opacity(.55); }

@@ -266,13 +266,25 @@ and **right-click for all options**.
 
 **Style** (top of Customize) — **style kits** set everything at once so it matches: colours,
 material, backdrop, font, roundness, and the looks of the YouTube Music widgets and picture frames
-on every board (Liquid glass, Gallery, Neon nights, Warm sunset, Deep ocean, Vinyl lounge, Calm
-dawn, Mono minimal). **Shuffle** makes up a fresh combination that still goes together; Undo is
-offered each time. **Material** alone: Solid, Frosted glass, **Liquid glass** (deep blur, light edges
-and highlights), Paper, Neon outline — cards, bars and menus together. **Backdrop**: soft colour
-fields behind everything (Aurora, Sunset, Ocean, Forest, Rose, Night city, Studio light, Dawn) for
-glass to show through. **Colours follow the music**: the accent takes the colour of the cover
-of what plays. Saved looks keep all of these.
+on every board. **Shuffle** makes up a fresh combination that still goes together; Undo each time.
+**Material**: Solid, Frosted glass, **Liquid glass** (in Edge it bends what is behind it at the edges, like
+a thick lens; plain blur while the board moves), Paper, Neon outline. **Glass colour**: the theme’s,
+**clear** (only light, no colour), **from the cover** of what plays, or a colour of your own.
+**Backdrop**: None, Soft colour, **From the cover** (the colours of the album that plays),
+**Cover art** (the cover itself, blurred big behind everything), Spotlight, Split colour, Film grain.
+**Colours follow the music**: the accent takes the colour of the cover. Saved looks keep all of these.
+
+**Music overlay and ambient** — a layer over the whole screen that moves with whatever plays in Edge,
+like shaders over a game: bars along the bottom, top and bottom, from the sides, an edge glow, waves,
+or stars on the beat; in clear glass, tinted glass, neon or solid; coloured from the cover, the accent,
+a rainbow or a colour you pick; with strength and opacity. It never takes a click — every card stays
+usable through it. **Ambient mode** fades the bars and buttons away (the pointer hides when still) so you
+see the whole screen with the visuals; **Esc** brings everything back.
+
+**Commands** — type **>** in the search box for commands (Enter runs the first): ambient mode, the
+overlay and its looks, style kits, Shuffle, materials, glass colours, backdrops, the view map, Now
+playing, new cards and boards, lock the view… Words without > also show matching commands among the
+results.
 
 **Customize** (top right) — themes (Graphite, Midnight, Neon, Acrylic, Cork,
 Paper), every colour, opacity, roundness, font, background image, search
@@ -339,6 +351,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
 | `dev/webzoomtest.js` | Checks zooming a website window from inside the site, and coming back to the same page and scroll position |
+| `dev/overlaytest.js` | Checks commands, the music overlay (clicks pass through), ambient mode, clear glass and refraction; screenshots each overlay |
 | `dev/styletest.js` | Checks style kits (widgets on every board too), Undo, Shuffle, materials, the picture frame and cover colours; screenshots each kit |
 | `dev/maptest.js` | Checks the view map: laying out, dragging tiles, Ctrl+arrows by direction |
 | `dev/keystest.js` | Checks Ctrl+arrows through views and the list, and Tab + arrows through the board tree |

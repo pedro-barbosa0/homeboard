@@ -766,6 +766,34 @@ function visualizer(host, saved, onChange) {
   };
 }
 
+/* ---- the audio hub: loudness per band of whatever plays in Edge, for anything that wants it (the screen overlay).
+   Asks audible tabs every 1.5 s (tap.js answers with a stream); runs only while someone listens. ---- */
+window.HomeboardAudio = window.HomeboardAudio || (() => {
+  const api = globalThis.browser ?? globalThis.chrome;
+  const can = !!(api?.tabs?.query && api?.runtime?.onConnect);
+  const streams = new Map();
+  let users = 0, poll = 0;
+  const onPort = port => {
+    if (port.name !== 'homeboard-tap' || !users) return;
+    const st = { at: 0, idle: true };
+    streams.set(port, st);
+    port.onMessage.addListener(m => { Object.assign(st, m); st.idle = !!m.idle; if (!m.idle) st.at = performance.now(); });
+    port.onDisconnect.addListener(() => streams.delete(port));
+  };
+  const ask = () => api.tabs.query({ audible: true }).then(tabs => { for (const t of tabs) api.tabs.sendMessage(t.id, { homeboard: 'tap', on: true }).catch(() => {}); }, () => {});
+  function start() { if (!can) return; if (users++ === 0) { api.runtime.onConnect.addListener(onPort); ask(); poll = setInterval(ask, 1500); } }
+  function stop() {
+    if (!can || users === 0) return;
+    if (--users === 0) { clearInterval(poll); api.runtime.onConnect.removeListener(onPort); for (const p of streams.keys()) { try { p.disconnect(); } catch { /* gone */ } } streams.clear(); }
+  }
+  function now() {                                       // { bands: 96 x 0..255, wave: 128 x 0..255 } of the most recent player, or null
+    let best = null;
+    for (const st of streams.values()) if (!st.idle && (!best || st.at > best.at)) best = st;
+    return best && performance.now() - best.at < 600 ? best : null;
+  }
+  return { start, stop, now, available: can };
+})();
+
 REG.viz = { label: 'Sound visualiser', menu: 'Sound visualiser', w: 440, h: 170, bare: true, create: visualizer };
 REG.clock = { label: 'Clock', menu: 'Clock', w: 210, h: 230, bare: true, create: clock };
 REG.g2048 = { label: '2048', menu: '2048', w: 300, h: 340, bare: true, create: g2048 };

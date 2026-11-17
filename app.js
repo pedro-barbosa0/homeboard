@@ -177,7 +177,8 @@ const DEFAULT_SETTINGS = {
   pattern: 'dots', bgImage: '',
   cardAlpha: 100, chromeAlpha: 86, radius: 12, fontSize: 14, font: 'system', snap: false,
   engine: 'bing', clock: true, hour12: false, unblock: true, dockHide: true,
-  material: 'solid', scene: 'none', musicAccent: false,
+  material: 'solid', scene: 'none', musicAccent: false, glassTint: 'theme', glassColor: '#9fc3ff', refract: true,
+  overlay: 'off', overlayLook: 'glass', overlayColor: 'cover', overlayHex: '#7ad7ff', overlayPower: 100, overlayAlpha: 85,
 };
 
 const TYPES = {
@@ -545,40 +546,53 @@ function inkFor(hex) {
 }
 
 /* Looks: a saved appearance. The general one lives in state.settings; a board may wear a saved one instead. */
-const LOOK_KEYS = ['theme', 'accent', 'bg', 'surface', 'raise', 'text', 'pattern', 'bgImage', 'cardAlpha', 'chromeAlpha', 'radius', 'fontSize', 'font', 'material', 'scene', 'musicAccent'];
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'surface', 'raise', 'text', 'pattern', 'bgImage', 'cardAlpha', 'chromeAlpha', 'radius', 'fontSize', 'font', 'material', 'scene', 'musicAccent', 'glassTint', 'glassColor', 'refract'];
 /* What cards, bars and menus are made of. */
 const MATERIALS = { solid: 'Solid', frosted: 'Frosted glass', liquid: 'Liquid glass', paper: 'Paper', outline: 'Neon outline' };
 /* Soft colour fields behind everything (glass needs something to show through). */
-const SCENES = {
-  none: ['None', null],
-  aurora: ['Aurora', 'radial-gradient(55% 45% at 18% 22%, rgba(31,209,164,.5), transparent 70%), radial-gradient(50% 55% at 82% 28%, rgba(122,92,255,.55), transparent 70%), radial-gradient(65% 55% at 50% 108%, rgba(14,107,255,.45), transparent 70%)'],
-  sunset: ['Sunset', 'radial-gradient(60% 50% at 18% 88%, rgba(255,112,80,.55), transparent 70%), radial-gradient(55% 50% at 84% 78%, rgba(255,184,107,.45), transparent 70%), radial-gradient(70% 60% at 50% -5%, rgba(132,63,224,.5), transparent 70%)'],
-  ocean: ['Ocean', 'radial-gradient(60% 55% at 15% 15%, rgba(0,180,216,.45), transparent 70%), radial-gradient(60% 60% at 85% 85%, rgba(3,4,94,.7), transparent 70%), radial-gradient(50% 45% at 70% 25%, rgba(72,202,228,.35), transparent 70%)'],
-  forest: ['Forest', 'radial-gradient(55% 50% at 20% 80%, rgba(56,142,60,.45), transparent 70%), radial-gradient(55% 55% at 80% 20%, rgba(174,213,129,.3), transparent 70%), radial-gradient(60% 60% at 60% 60%, rgba(27,94,32,.4), transparent 70%)'],
-  rose: ['Rose', 'radial-gradient(55% 50% at 20% 25%, rgba(255,120,170,.45), transparent 70%), radial-gradient(55% 55% at 80% 75%, rgba(255,190,150,.45), transparent 70%), radial-gradient(50% 50% at 75% 15%, rgba(190,120,255,.35), transparent 70%)'],
-  city: ['Night city', 'radial-gradient(60% 45% at 15% 100%, rgba(255,43,214,.45), transparent 70%), radial-gradient(55% 45% at 90% 0%, rgba(0,240,255,.35), transparent 70%), radial-gradient(40% 35% at 55% 55%, rgba(80,40,255,.25), transparent 70%)'],
-  studio: ['Studio light', 'radial-gradient(45% 55% at 50% -5%, rgba(255,222,170,.4), transparent 70%), radial-gradient(70% 50% at 50% 115%, rgba(0,0,0,.35), transparent 70%)'],
-  dawn: ['Dawn', 'radial-gradient(55% 50% at 20% 20%, rgba(255,200,170,.6), transparent 70%), radial-gradient(55% 55% at 85% 30%, rgba(170,200,255,.6), transparent 70%), radial-gradient(60% 50% at 50% 110%, rgba(200,170,255,.5), transparent 70%)'],
+const GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+const SCENES = {                                       // [name, background (null: made from what plays), a little picture for the chip]
+  none: ['None', null, 'var(--bg)'],
+  aurora: ['Soft colour', 'radial-gradient(55% 45% at 18% 22%, rgba(31,209,164,.45), transparent 70%), radial-gradient(50% 55% at 82% 28%, rgba(122,92,255,.5), transparent 70%), radial-gradient(65% 55% at 50% 108%, rgba(14,107,255,.4), transparent 70%)'],
+  cover: ['From the cover', null, 'conic-gradient(from 40deg, #ff6b6b, #ffd93d, #4d96ff, #ff6b6b)'],
+  coverart: ['Cover art', null, 'linear-gradient(135deg, #2b2b2b, #6a6a6a)'],
+  spotlight: ['Spotlight', 'radial-gradient(34% 75% at 50% -14%, rgba(255,238,210,.62), rgba(255,238,210,.1) 55%, transparent 76%), radial-gradient(130% 80% at 50% 125%, rgba(0,0,0,.7), transparent 60%)'],
+  split: ['Split colour', 'linear-gradient(118deg, color-mix(in srgb, var(--accent) 58%, transparent) 0 44%, transparent 44.15%), linear-gradient(118deg, transparent 0 44%, color-mix(in srgb, var(--accent) 22%, rgba(0,0,0,.55)) 44.15%)'],
+  grain: ['Film grain', GRAIN + ', radial-gradient(120% 90% at 50% 45%, transparent 45%, rgba(0,0,0,.6))'],
 };
+const OLD_SCENES = { sunset: 'aurora', ocean: 'aurora', forest: 'aurora', rose: 'aurora', dawn: 'aurora', city: 'split', studio: 'spotlight' };
+let coverArt = '';                                      // the cover of what plays (for the backdrops that use it)
+function sceneCss(key) {
+  if (key === 'cover') {
+    const p = coverPalette;
+    return p ? `radial-gradient(60% 55% at 14% 18%, ${p.vivid}d9, transparent 70%), radial-gradient(60% 60% at 86% 82%, ${p.average}cc, transparent 70%), radial-gradient(55% 50% at 80% 10%, ${p.light}66, transparent 70%), radial-gradient(80% 70% at 50% 115%, ${p.dark}, transparent 70%)` : SCENES.aurora[1];
+  }
+  if (key === 'coverart') return coverArt ? null : SCENES.aurora[1];
+  return SCENES[key]?.[1] || null;
+}
 /* Style kits: everything chosen to go together, widgets included. */
 const KITS = [
-  { id: 'liquid', name: 'Liquid glass', theme: 'midnight', material: 'liquid', scene: 'aurora', accent: '#8fd3ff', radius: 20, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'liquid', frame: 'white' },
-  { id: 'gallery', name: 'Gallery', theme: 'paper', material: 'paper', scene: 'studio', accent: '#b8891f', radius: 4, font: 'serif', pattern: 'none', cardAlpha: 100, ytm: 'frame', frame: 'gilded' },
-  { id: 'neon', name: 'Neon nights', theme: 'neon', material: 'outline', scene: 'city', accent: '#00f0ff', radius: 14, font: 'mono', pattern: 'grid', cardAlpha: 100, ytm: 'ambient', frame: 'gallery' },
-  { id: 'sunset', name: 'Warm sunset', theme: 'graphite', material: 'frosted', scene: 'sunset', accent: '#ffb36b', radius: 16, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'art', frame: 'wood' },
-  { id: 'ocean', name: 'Deep ocean', theme: 'midnight', material: 'frosted', scene: 'ocean', accent: '#48cae4', radius: 18, font: 'system', pattern: 'dots', cardAlpha: 100, ytm: 'glass', frame: 'polaroid' },
-  { id: 'lounge', name: 'Vinyl lounge', theme: 'graphite', material: 'paper', scene: 'studio', accent: '#e07a5f', radius: 12, font: 'serif', pattern: 'none', cardAlpha: 100, ytm: 'vinyl', frame: 'wood' },
-  { id: 'calm', name: 'Calm dawn', theme: 'paper', material: 'liquid', scene: 'dawn', accent: '#6c63ff', radius: 22, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'pill', frame: 'none' },
+  { id: 'liquid', name: 'Liquid glass', theme: 'midnight', material: 'liquid', scene: 'coverart', accent: '#8fd3ff', radius: 20, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'liquid', frame: 'white' },
+  { id: 'gallery', name: 'Gallery', theme: 'paper', material: 'paper', scene: 'spotlight', accent: '#b8891f', radius: 4, font: 'serif', pattern: 'none', cardAlpha: 100, ytm: 'frame', frame: 'gilded' },
+  { id: 'neon', name: 'Neon nights', theme: 'neon', material: 'outline', scene: 'split', accent: '#00f0ff', radius: 14, font: 'mono', pattern: 'grid', cardAlpha: 100, ytm: 'ambient', frame: 'gallery' },
+  { id: 'sunset', name: 'Album colours', theme: 'graphite', material: 'frosted', scene: 'cover', accent: '#ffb36b', radius: 16, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'art', frame: 'wood' },
+  { id: 'ocean', name: 'Deep ocean', theme: 'midnight', material: 'frosted', scene: 'aurora', accent: '#48cae4', radius: 18, font: 'system', pattern: 'dots', cardAlpha: 100, ytm: 'glass', frame: 'polaroid' },
+  { id: 'lounge', name: 'Vinyl lounge', theme: 'graphite', material: 'paper', scene: 'grain', accent: '#e07a5f', radius: 12, font: 'serif', pattern: 'none', cardAlpha: 100, ytm: 'vinyl', frame: 'wood' },
+  { id: 'calm', name: 'Calm dawn', theme: 'paper', material: 'liquid', scene: 'aurora', accent: '#6c63ff', radius: 22, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'pill', frame: 'none' },
   { id: 'mono', name: 'Mono minimal', theme: 'graphite', material: 'solid', scene: 'none', accent: '#e7e9ee', radius: 8, font: 'system', pattern: 'dots', cardAlpha: 100, ytm: 'minimal', frame: 'white' },
 ];
-let musicTint = null;                                  // the vivid colour of the cover that plays (for "colours follow the music")
+let musicTint = null, coverPalette = null;                                  // the vivid colour of the cover that plays (for "colours follow the music")
 const pickLook = src => Object.fromEntries(LOOK_KEYS.map(k => [k, src[k]]));
 function cleanLook(o) {
   const out = pickLook({ ...DEFAULT_SETTINGS, ...(o && typeof o === 'object' ? o : {}) });
   if (!THEMES[out.theme]) out.theme = 'graphite';
   if (!MATERIALS[out.material]) out.material = 'solid';
+  if (OLD_SCENES[out.scene]) out.scene = OLD_SCENES[out.scene];
   if (!SCENES[out.scene]) out.scene = 'none';
   out.musicAccent = !!out.musicAccent;
+  if (!['theme', 'clear', 'color', 'cover'].includes(out.glassTint)) out.glassTint = 'theme';
+  if (!/^#[0-9a-f]{6}$/i.test(out.glassColor || '')) out.glassColor = '#9fc3ff';
+  out.refract = out.refract !== false;
   if (typeof out.bgImage !== 'string') out.bgImage = '';
   for (const k of COLOR_KEYS) if (!/^#[0-9a-f]{6}$/i.test(out[k] || '')) out[k] = null;
   return out;
@@ -623,6 +637,271 @@ function renderLooks() {
   }));
 }
 
+/* ---- the music overlay: a layer over the whole screen that moves with what plays (like shaders in a game).
+   It never takes a click (pointer-events: none), so the boards stay usable through it. Drawn in one canvas. ---- */
+const FX_STYLES = { off: 'Off', bottom: 'Bars along the bottom', both: 'Bars top and bottom', sides: 'Bars from the sides', glow: 'Edge glow', waves: 'Waves', bursts: 'Stars on the beat' };
+const FX_LOOKS = { glass: 'Clear glass', tinted: 'Tinted glass', neon: 'Neon', solid: 'Solid' };
+const FX_COLORS = { cover: 'From the cover', accent: 'Accent colour', rainbow: 'Rainbow', color: 'Pick a colour' };
+const fx = (() => {
+  let cv = null, g = null, raf = 0, on = false, alpha = 0, idleT = 0, beatAvg = 0, lastBeat = 0;
+  const N = 96, shown = new Float32Array(N), parts = [];
+  const hexRgb = h6 => [1, 3, 5].map(i => parseInt(h6.slice(i, i + 2), 16));
+  function style() { return ambient.on && state.settings.overlay === 'off' ? 'glow' : state.settings.overlay; }
+  function refresh() {
+    const want = style() !== 'off' && !!window.HomeboardAudio?.available;
+    if (want === on) return;
+    on = want;
+    if (on) {
+      if (!cv) { cv = h('canvas', { id: 'fx-layer', 'aria-hidden': 'true' }); document.body.append(cv); g = cv.getContext('2d'); }
+      window.HomeboardAudio.start();
+      raf = requestAnimationFrame(frame);
+    } else {
+      window.HomeboardAudio?.stop();
+      cancelAnimationFrame(raf);
+      if (g) g.clearRect(0, 0, cv.width, cv.height);
+    }
+  }
+  function colourAt(i, n, t) {                         // the colour of bar i of n (t: 0..1 loudness)
+    const o = state.settings;
+    if (o.overlayColor === 'rainbow') return `hsl(${(i / n * 300 + performance.now() / 60) % 360} 90% 65%)`;
+    if (o.overlayColor === 'color') return o.overlayHex;
+    if (o.overlayColor === 'cover' && coverPalette) { const a = hexRgb(coverPalette.vivid), b = hexRgb(coverPalette.light); const k = i / Math.max(1, n - 1); return `rgb(${a.map((v, j) => Math.round(v + (b[j] - v) * k)).join(',')})`; }
+    return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7aa2ff';
+  }
+  /* one bar in the chosen look: clear glass (light edges, a highlight, a little glow), tinted glass, neon or solid */
+  function bar(x, y, w, hh, col, edge) {
+    if (w < 1 || hh < 1) return;
+    const look = state.settings.overlayLook, r = Math.min(w, hh) * .35;
+    g.save();
+    g.beginPath(); g.roundRect(x, y, w, hh, r);
+    if (look === 'neon') { g.shadowColor = col; g.shadowBlur = 16; g.strokeStyle = col; g.lineWidth = 2; g.stroke(); g.restore(); return; }
+    if (look === 'solid') { g.shadowColor = col; g.shadowBlur = 10; g.fillStyle = col; g.globalAlpha *= .9; g.fill(); g.restore(); return; }
+    const vertical = edge === 'bottom' || edge === 'top';
+    const grad = vertical ? g.createLinearGradient(0, y, 0, y + hh) : g.createLinearGradient(x, 0, x + w, 0);
+    const tint = look === 'tinted' ? col : 'rgba(255,255,255,1)';
+    g.globalAlpha *= look === 'tinted' ? .55 : .9;
+    grad.addColorStop(0, tint); grad.addColorStop(1, tint);
+    g.fillStyle = grad;
+    g.globalAlpha *= look === 'tinted' ? .6 : .1;
+    g.shadowColor = col; g.shadowBlur = 18;
+    g.fill();
+    g.shadowBlur = 0;
+    g.globalAlpha /= look === 'tinted' ? .6 : .1;
+    g.strokeStyle = look === 'tinted' ? 'rgba(255,255,255,.55)' : col; g.lineWidth = 1.2; g.globalAlpha *= .9; g.stroke();
+    g.beginPath();                                      // the highlight along the lit edge
+    if (vertical) { const yy = edge === 'top' ? y + hh - 3 : y + 3; g.moveTo(x + r * .6, yy); g.lineTo(x + w - r * .6, yy); }
+    else { const xx = edge === 'left' ? x + w - 3 : x + 3; g.moveTo(xx, y + r * .6); g.lineTo(xx, y + hh - r * .6); }
+    g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 1.5; g.stroke();
+    g.restore();
+  }
+  function level(a, b) { let m = 0; for (let k = a; k < b; k++) if (shown[k] > m) m = shown[k]; return m; }
+  function frame(now) {
+    if (!on) return;
+    raf = requestAnimationFrame(frame);
+    const W = innerWidth, H = innerHeight, dpr = Math.min(2, devicePixelRatio || 1);
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const src = window.HomeboardAudio.now(), o = state.settings, power = (o.overlayPower || 100) / 100;
+    alpha += ((src ? 1 : 0) - alpha) * (src ? .08 : .03);          // fades in with sound, out with silence
+    if (alpha < .01) return;
+    for (let i = 0; i < N; i++) {
+      const target = src ? Math.min(1, (src.bands[i] / 255) ** 1.4 * power) : 0;
+      shown[i] += (target - shown[i]) * (target > shown[i] ? .5 : .12);
+    }
+    g.globalAlpha = alpha * (o.overlayAlpha || 85) / 100;
+    const st = style();
+    const bass = level(0, 8);
+    beatAvg = beatAvg * .96 + bass * .04;
+    const beat = bass > .3 && bass > beatAvg * 1.35 && now - lastBeat > 220;
+    if (beat) lastBeat = now;
+    if (st === 'bottom' || st === 'both') {
+      const n = Math.max(16, Math.floor(W / 30)), w = W / n;
+      for (let i = 0; i < n; i++) {
+        const v = level(Math.floor(i * N / n), Math.max(Math.floor(i * N / n) + 1, Math.floor((i + 1) * N / n)));
+        const hh = v * H * .3;
+        bar(i * w + w * .18, H - hh - 2, w * .64, hh, colourAt(i, n, v), 'bottom');
+        if (st === 'both') { const j = n - 1 - i, v2 = level(Math.floor(j * N / n), Math.floor(j * N / n) + 1), h2 = v2 * H * .22; bar(i * w + w * .18, 2, w * .64, h2, colourAt(j, n, v2), 'top'); }
+      }
+    } else if (st === 'sides') {
+      const n = Math.max(10, Math.floor(H / 28)), hh = H / n;
+      for (let i = 0; i < n; i++) {
+        const b = n - 1 - i, v = level(Math.floor(b * N / n), Math.max(Math.floor(b * N / n) + 1, Math.floor((b + 1) * N / n)));
+        const len = v * W * .26;
+        bar(2, i * hh + hh * .2, len, hh * .6, colourAt(b, n, v), 'left');
+        bar(W - len - 2, i * hh + hh * .2, len, hh * .6, colourAt(b, n, v), 'right');
+      }
+    } else if (st === 'glow') {                         // a soft light around the edges, breathing with the music (like a voice assistant's glow)
+      const mid = level(8, 40), high = level(40, 96), t = now / 1000;
+      const edge = (x0, y0, x1, y1, size, col) => { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; return size; };
+      const thick = 10 + bass * 90, side = 8 + mid * 70, top = 6 + high * 60;
+      const c1 = colourAt(0, 4, bass), c2 = colourAt(1, 4, mid), c3 = colourAt(2, 4, high), c4 = colourAt(3, 4, mid);
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha *= .55;
+      edge(0, H, 0, H - thick, 0, c1); g.fillRect(0, H - thick, W, thick);
+      edge(0, 0, 0, top, 0, c3); g.fillRect(0, 0, W, top);
+      edge(0, 0, side, 0, 0, c2); g.fillRect(0, 0, side, H);
+      edge(W, 0, W - side, 0, 0, c4); g.fillRect(W - side, 0, side, H);
+      for (const [cx, cy, c] of [[0, H, c1], [W, H, c4], [W * (.5 + .4 * Math.sin(t * .4)), H, c2]]) {   // blooms that drift along the bottom
+        const rr = 60 + bass * 260, gr = g.createRadialGradient(cx, cy, 0, cx, cy, rr); gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+      }
+      g.globalCompositeOperation = 'source-over';
+    } else if (st === 'waves') {
+      const layers = [[0, 40, .26], [16, 70, .18], [40, 96, .12]];
+      layers.forEach(([a, b, hgt], li) => {
+        const col = colourAt(li, 3, .7);
+        g.beginPath(); g.moveTo(0, H);
+        const pts = 48;
+        for (let k = 0; k <= pts; k++) {
+          const x = k / pts * W, band = a + Math.floor(k / pts * (b - a - 1)), y = H - 4 - shown[band] * H * hgt - Math.sin(k / 3 + now / 600 + li) * 6 * alpha;
+          if (k === 0) g.lineTo(x, y); else { const px = (k - .5) / pts * W; g.quadraticCurveTo(px, y, x, y); }
+        }
+        g.lineTo(W, H); g.closePath();
+        const gr = g.createLinearGradient(0, H - H * hgt, 0, H); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.save(); g.globalAlpha *= .35; g.fillStyle = gr; g.fill(); g.restore();
+        g.save(); g.shadowColor = col; g.shadowBlur = 14; g.strokeStyle = col; g.lineWidth = 2; g.globalAlpha *= .9; g.stroke(); g.restore();
+      });
+    } else if (st === 'bursts') {                      // stars that open on the beat in the corners, and a ribbon that follows the music
+      if (beat) for (const [cx, cy] of [[60, 60], [W - 60, 60], [60, H - 60], [W - 60, H - 60]]) parts.push({ x: cx, y: cy, r: 10, life: 1, rot: Math.random() * 6, col: colourAt(Math.floor(Math.random() * 8), 8, 1) });
+      for (let k = parts.length - 1; k >= 0; k--) {
+        const p = parts[k];
+        p.r += 3 + bass * 6; p.life -= .022; p.rot += .02;
+        if (p.life <= 0) { parts.splice(k, 1); continue; }
+        g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.globalAlpha *= p.life * .8;
+        g.beginPath();
+        for (let j = 0; j < 16; j++) { const rr = j % 2 ? p.r * .45 : p.r, an = j / 16 * Math.PI * 2; g.lineTo(Math.cos(an) * rr, Math.sin(an) * rr); }
+        g.closePath(); g.shadowColor = p.col; g.shadowBlur = 18; g.strokeStyle = p.col; g.lineWidth = 2.5; g.stroke();
+        g.fillStyle = p.col; g.globalAlpha *= .12; g.fill(); g.restore();
+      }
+      if (parts.length > 60) parts.splice(0, parts.length - 60);
+      g.beginPath();
+      for (let k = 0; k <= 64; k++) { const x = k / 64 * W, y = H * .82 - (shown[Math.floor(k / 64 * 60)] - .2) * H * .25 * Math.sin(k / 64 * Math.PI); if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+      const col = colourAt(2, 4, .8);
+      g.save(); g.shadowColor = col; g.shadowBlur = 16; g.strokeStyle = col; g.lineWidth = 3; g.lineCap = 'round'; g.stroke(); g.restore();
+    }
+    g.globalAlpha = 1;
+  }
+  return { refresh };
+})();
+
+/* ---- ambient mode: the bars and buttons fade away, the overlay runs, the boards stay usable; Esc comes back ---- */
+const ambient = (() => {
+  let hideCursor = 0;
+  const api2 = {
+    on: false,
+    toggle(want = !api2.on) {
+      api2.on = want;
+      document.body.classList.toggle('ambient', want);
+      fx.refresh();
+      clearTimeout(hideCursor);
+      if (want) hud(state.settings.overlay === 'off' ? 'Ambient · Esc to come back (choose an overlay in Customize)' : 'Ambient · Esc to come back');
+    },
+  };
+  addEventListener('pointermove', () => {               // in ambient, the pointer hides after a few still seconds
+    if (!api2.on) return;
+    document.body.classList.remove('ambient-still');
+    clearTimeout(hideCursor);
+    hideCursor = setTimeout(() => api2.on && document.body.classList.add('ambient-still'), 3000);
+  }, { passive: true });
+  return api2;
+})();
+
+/* ---- liquid glass that bends the light: an SVG displacement map per size (Chromium can use an SVG filter as a
+   backdrop-filter, as in kube.io's write-up); the edges push what is behind inward, like a thick lens. ---- */
+const lens = (() => {
+  let defs = null, enabled = false;
+  const made = new Map(), watched = new WeakMap();
+  const ro = new ResizeObserver(entries => { for (const e of entries) dress(e.target); });
+  function mapFor(w, hh, r) {                          // R/G hold the push in x/y, 128 = none
+    const k = 2, W = Math.max(8, Math.round(w / k)), H = Math.max(8, Math.round(hh / k)), rr = r / k, bevel = Math.min(16, Math.min(W, H) / 4);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const px = x + .5 - W / 2, py = y + .5 - H / 2, qx = Math.abs(px) - (W / 2 - rr), qy = Math.abs(py) - (H / 2 - rr);
+      const out = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rr;   // distance to the rounded edge (negative inside)
+      const dist = -out;
+      let dx = 0, dy = 0;
+      if (dist < bevel && dist >= 0) {
+        let nx, ny;
+        if (qx > 0 && qy > 0) { const l = Math.hypot(qx, qy) || 1; nx = qx / l * Math.sign(px); ny = qy / l * Math.sign(py); }
+        else if (qx > qy) { nx = Math.sign(px); ny = 0; } else { nx = 0; ny = Math.sign(py); }
+        const t = 1 - dist / bevel, amt = t * t * (3 - 2 * t);
+        dx = -nx * amt; dy = -ny * amt;
+      }
+      const i = (y * W + x) * 4;
+      d[i] = 128 + dx * 127; d[i + 1] = 128 + dy * 127; d[i + 2] = 128; d[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return c.toDataURL();
+  }
+  function filterFor(w, hh, r) {
+    const key = `${w}x${hh}x${r}`;
+    if (made.has(key)) return made.get(key);
+    if (!defs) { const host = svg('svg', { width: 0, height: 0, style: 'position:absolute;width:0;height:0', 'aria-hidden': 'true' }); defs = svg('defs'); host.append(defs); document.body.append(host); }
+    const id = 'hb-lens-' + made.size;
+    const f = svg('filter', { id, x: 0, y: 0, width: w, height: hh, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' });
+    f.append(svg('feImage', { href: mapFor(w, hh, r), x: 0, y: 0, width: w, height: hh, preserveAspectRatio: 'none', result: 'map' }),
+      svg('feDisplacementMap', { in: 'SourceGraphic', in2: 'map', scale: Math.min(48, Math.max(18, Math.min(w, hh) / 6)), xChannelSelector: 'R', yChannelSelector: 'G' }));
+    defs.append(f);
+    made.set(key, id);
+    if (made.size > 80) { defs.firstChild?.remove(); made.delete(made.keys().next().value); }
+    return id;
+  }
+  function dress(el) {
+    if (!enabled || !el.isConnected) { el.style.removeProperty('backdrop-filter'); return; }
+    const w = Math.round(el.offsetWidth / 8) * 8, hh = Math.round(el.offsetHeight / 8) * 8;
+    if (w < 24 || hh < 24) return;
+    const r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, hh / 2);
+    el.style.setProperty('backdrop-filter', `url(#${filterFor(w, hh, Math.round(r))}) blur(2px) saturate(1.8) brightness(1.05)`);
+  }
+  const targets = () => [...document.querySelectorAll('.pill, #menu, #np-panel, #finder, #world > .card:not(.bare)')];
+  function sweep() {
+    for (const el of targets()) { if (!watched.has(el)) { watched.set(el, 1); ro.observe(el); } dress(el); }
+  }
+  new MutationObserver(() => { if (enabled) requestAnimationFrame(sweep); }).observe(document.body, { childList: true, subtree: false });
+  return {
+    update(want) {
+      if (!CSS.supports('backdrop-filter', 'url(#x)')) want = false;
+      if (want === enabled) { if (want) sweep(); return; }
+      enabled = want;
+      document.body.classList.toggle('lens', want);
+      if (want) sweep(); else for (const el of document.querySelectorAll('[style*="backdrop-filter"]')) el.style.removeProperty('backdrop-filter');
+    },
+    sweep,
+  };
+})();
+
+/* ---- commands: typed in the search box (start with > to see them all) ---- */
+function commandOrder(cq) {                           // the commands that fit, those whose name has every word first
+  const words = cq.split(/\s+/).filter(Boolean), list = commandList();
+  if (!words.length) return list;
+  return list.map(c => { const name = fold(c.label), all = fold(c.label + ' ' + c.words); return { c, ok: words.every(w => all.includes(w)), named: words.every(w => name.includes(w)) }; })
+    .filter(x => x.ok).sort((a, b) => b.named - a.named).map(x => x.c);
+}
+function commandList() {
+  const set = (k, v) => () => { state.settings[k] = v; fx.refresh(); save(); syncSettingsUI(); hud(`${{ overlay: 'Overlay', overlayLook: 'Overlay look', overlayColor: 'Overlay colour' }[k]}: ${(k === 'overlay' ? FX_STYLES : k === 'overlayLook' ? FX_LOOKS : FX_COLORS)[v]}`); };
+  const look = (k, v, label) => () => { lookTarget()[k] = v; applySettings(); syncSettingsUI(); save(); hud(label); };
+  return [
+    { label: ambient.on ? 'Leave ambient mode' : 'Ambient mode (hide the bars, music visuals on)', words: 'ambient idle screensaver relax watch', run: () => ambient.toggle() },
+    ...Object.entries(FX_STYLES).map(([k, n]) => ({ label: k === 'off' ? 'Music overlay off' : `Music overlay: ${n}`, words: 'overlay visualizer visualiser music shader layer', run: set('overlay', k) })),
+    ...Object.entries(FX_LOOKS).map(([k, n]) => ({ label: `Overlay look: ${n}`, words: 'overlay look', run: set('overlayLook', k) })),
+    ...Object.entries(FX_COLORS).filter(([k]) => k !== 'color').map(([k, n]) => ({ label: `Overlay colour: ${n}`, words: 'overlay colour color', run: set('overlayColor', k) })),
+    ...KITS.map(k => ({ label: `Style kit: ${k.name}`, words: 'style kit theme look ' + k.name, run: () => applyKit(k) })),
+    { label: 'Shuffle the style', words: 'shuffle random style fresh new look', run: shuffleStyle },
+    ...Object.entries(MATERIALS).map(([k, n]) => ({ label: `Material: ${n}`, words: 'material', run: look('material', k, 'Material: ' + n) })),
+    ...[['theme', 'Theme'], ['clear', 'Clear'], ['cover', 'From the cover']].map(([k, n]) => ({ label: `Glass colour: ${n}`, words: 'glass colour color tint', run: look('glassTint', k, 'Glass colour: ' + n) })),
+    ...Object.entries(SCENES).map(([k, [n]]) => ({ label: `Backdrop: ${n}`, words: 'backdrop background scene', run: look('scene', k, 'Backdrop: ' + n) })),
+    { label: 'Colours follow the music: ' + (shown().musicAccent ? 'off' : 'on'), words: 'colours colors music cover accent', run: () => { lookTarget().musicAccent = !shown().musicAccent; applySettings(); save(); } },
+    { label: 'View map', words: 'views map arrange', run: viewMapOpen },
+    { label: 'Now playing', words: 'music playing media pause', run: () => nowPlaying.open() },
+    { label: 'Customize', words: 'settings customize theme', run: () => { panel.hidden = false; syncSettingsUI(); } },
+    { label: board().frozen ? 'Unlock the view' : 'Lock the view', words: 'lock freeze view', run: () => { const b = board(); b.frozen = !b.frozen; document.body.classList.toggle('view-locked', b.frozen); save(); } },
+    { label: 'Fit everything on screen', words: 'fit zoom all', run: fitView },
+    ...Object.entries(TYPES).filter(([, t]) => t.menu).map(([type, t]) => ({ label: t.menu, words: 'new add create ' + t.label, run: () => addCard(type) })),
+    { label: 'New board', words: 'new board add', run: () => addBoard() },
+  ];
+}
+
 /* ---- Style: kits, Shuffle, material, backdrop, colours from the music ---- */
 function restyleWidgets(kit) {                          // the widgets on every board follow the kit
   const before = new Map();
@@ -654,7 +933,7 @@ function shuffleStyle() {                              // something fresh that s
   const hsl = (hh, ss, ll) => { ss /= 100; ll /= 100; const f = n => { const k = (n + hh / 30) % 12, a = ss * Math.min(ll, 1 - ll); return Math.round(255 * (ll - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0'); }; return '#' + f(0) + f(8) + f(4); };
   applyKit({
     name: 'Shuffled', theme: light ? pick(['paper', 'cork']) : pick(['graphite', 'midnight', 'neon']), material: pick(Object.keys(MATERIALS)),
-    scene: pick(light ? ['dawn', 'studio', 'rose', 'none'] : ['aurora', 'sunset', 'ocean', 'forest', 'rose', 'city', 'studio']),
+    scene: pick(light ? ['aurora', 'spotlight', 'grain', 'none'] : ['aurora', 'cover', 'coverart', 'spotlight', 'split', 'grain']),
     accent: hsl(hue, 85, light ? 52 : 66), radius: pick([6, 10, 14, 18, 22]), font: pick(['system', 'system', 'serif', 'mono']),
     pattern: pick(['none', 'none', 'dots', 'grid']), cardAlpha: 100,
     ytm: pick(['glass', 'liquid', 'art', 'ambient', 'vinyl', 'frame', 'pill']), frame: pick(['gilded', 'gallery', 'wood', 'polaroid', 'white', 'none']),
@@ -668,7 +947,7 @@ function renderStyle() {
   }
   const sh = shown();
   const chip = (on, label, title, fn, swatch) => h('button', { class: 'style-chip' + (on ? ' on' : ''), type: 'button', title, onclick: fn }, swatch, label);
-  const kitSwatch = k => { const t = THEMES[k.theme], sw = h('i', { class: 'kit-swatch' }); sw.style.background = (SCENES[k.scene]?.[1] ? SCENES[k.scene][1] + ', ' : '') + t.bg; sw.style.setProperty('--a', k.accent); sw.style.setProperty('--s', t.surface); sw.dataset.material = k.material; return sw; };
+  const kitSwatch = k => { const t = THEMES[k.theme], sw = h('i', { class: 'kit-swatch' }); sw.style.background = SCENES[k.scene]?.[2] || ((SCENES[k.scene]?.[1] ? SCENES[k.scene][1] + ', ' : '') + t.bg); sw.style.setProperty('--a', k.accent); sw.style.setProperty('--s', t.surface); sw.dataset.material = k.material; return sw; };
   sec.replaceChildren(
     h('h3', null, 'Style'),
     h('p', { class: 'note' }, 'A style kit sets colours, material, backdrop, font and roundness together — and the looks of the YouTube Music widgets and picture frames on every board. Shuffle makes up a new one that still goes together.'),
@@ -677,8 +956,36 @@ function renderStyle() {
     h('div', { class: 'style-label' }, 'Material'),
     h('div', { class: 'style-row' }, Object.entries(MATERIALS).map(([k, name]) => chip(sh.material === k, name, 'Cards, bars and menus made of ' + name.toLowerCase(), () => { lookTarget().material = k; applySettings(); syncSettingsUI(); save(); }))),
     h('div', { class: 'style-label' }, 'Backdrop'),
-    h('div', { class: 'style-row' }, Object.entries(SCENES).map(([k, [name, css]]) => { const sw = h('i', { class: 'scene-dot' }); sw.style.background = (css ? css + ', ' : '') + 'var(--bg)'; return chip(sh.scene === k, name, name + (sh.bgImage ? ' (your background picture covers it; Remove it to see this)' : ''), () => { lookTarget().scene = k; applySettings(); syncSettingsUI(); save(); }, sw); })),
+    h('div', { class: 'style-row' }, Object.entries(SCENES).map(([k, [name, css, pic]]) => { const sw = h('i', { class: 'scene-dot' }); sw.style.background = pic || ((css ? css + ', ' : '') + 'var(--bg)'); return chip(sh.scene === k, name, name + (sh.bgImage ? ' (your background picture covers it; Remove it to see this)' : ''), () => { lookTarget().scene = k; applySettings(); syncSettingsUI(); save(); }, sw); })),
+    h('div', { class: 'style-label' }, 'Glass colour (frosted and liquid glass)'),
+    h('div', { class: 'style-row' },
+      chip(sh.glassTint === 'theme', 'Theme', 'The colour of the cards', () => { lookTarget().glassTint = 'theme'; applySettings(); syncSettingsUI(); save(); }),
+      chip(sh.glassTint === 'clear', 'Clear', 'No colour at all: only light and blur', () => { lookTarget().glassTint = 'clear'; applySettings(); syncSettingsUI(); save(); }),
+      chip(sh.glassTint === 'cover', 'From the cover', 'Takes the colour of the cover of what plays', () => { lookTarget().glassTint = 'cover'; applySettings(); syncSettingsUI(); save(); }),
+      chip(sh.glassTint === 'color', 'This colour', 'A colour of your own', () => { lookTarget().glassTint = 'color'; applySettings(); syncSettingsUI(); save(); }),
+      h('input', { type: 'color', value: sh.glassColor || '#9fc3ff', title: 'Glass colour', 'aria-label': 'Glass colour', oninput(e) { const t = lookTarget(); t.glassColor = e.target.value; t.glassTint = 'color'; applySettings(); save(); }, onchange: () => syncSettingsUI() })),
+    sh.material === 'liquid' && h('label', { class: 'row' }, 'Liquid glass bends what is behind it at the edges', h('input', { type: 'checkbox', checked: sh.refract !== false, onchange(e) { lookTarget().refract = e.target.checked; applySettings(); save(); } })),
     h('label', { class: 'row' }, 'Colours follow the music (the cover of what plays)', h('input', { type: 'checkbox', checked: !!sh.musicAccent, onchange(e) { lookTarget().musicAccent = e.target.checked; applySettings(); save(); } })));
+  renderOverlaySettings();
+}
+function renderOverlaySettings() {
+  let sec = $('#overlay-sec');
+  if (!sec) { sec = h('section', { id: 'overlay-sec' }); $('#style-sec').after(sec); }
+  const o = state.settings;
+  const sel = (key, opts, label) => h('label', { class: 'row' }, label, h('select', { onchange(e) { o[key] = e.target.value; fx.refresh(); save(); renderOverlaySettings(); } },
+    Object.entries(opts).map(([v, t]) => h('option', { value: v, selected: o[key] === v }, t))));
+  const range = (key, min, max, label) => h('label', { class: 'row' }, label, h('input', { type: 'range', min, max, step: 5, value: o[key], oninput(e) { o[key] = +e.target.value; save(); } }));
+  sec.replaceChildren(
+    h('h3', null, 'Music overlay and ambient'),
+    h('p', { class: 'note' }, 'A layer over the whole screen that moves with what plays in Edge — you can still use every card through it. Ambient mode hides the bars and buttons so you see the whole screen (Esc brings them back). Also in the search box: type > for commands.'),
+    sel('overlay', FX_STYLES, 'Overlay'),
+    sel('overlayLook', FX_LOOKS, 'Look'),
+    h('label', { class: 'row' }, 'Colour', h('span', { class: 'ctl' },
+      h('select', { onchange(e) { o.overlayColor = e.target.value; save(); renderOverlaySettings(); } }, Object.entries(FX_COLORS).map(([v, t]) => h('option', { value: v, selected: o.overlayColor === v }, t))),
+      o.overlayColor === 'color' && h('input', { type: 'color', value: o.overlayHex, oninput(e) { o.overlayHex = e.target.value; save(); } }))),
+    range('overlayPower', 30, 200, 'Strength'),
+    range('overlayAlpha', 20, 100, 'Opacity'),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick() { panel.hidden = true; ambient.toggle(true); } }, 'Ambient mode now')));
 }
 
 function applySettings() {
@@ -692,7 +999,7 @@ function applySettings() {
     accent, 'accent-ink': inkFor(accent), dot: t.dot, 'tint-mix': t.tintMix, shadow: t.shadow, texture: t.texture,
     string: t.string,
     'bg-image': s.bgImage ? `url("${s.bgImage.replace(/["\\\n\r]/g, ch => encodeURIComponent(ch))}")`
-              : SCENES[s.scene]?.[1] || (t.image ? `url("${t.image}")` : 'none'),
+              : sceneCss(s.scene) || (t.image ? `url("${t.image}")` : 'none'),
     'bg-fallback': t.fallback || 'none',
     radius: clamp(+s.radius || 0, 0, 24) + 'px',
     'card-alpha': clamp(+s.cardAlpha || 100, 40, 100) + '%',
@@ -705,6 +1012,17 @@ function applySettings() {
   document.body.dataset.theme = THEMES[s.theme] ? s.theme : 'graphite';
   document.body.classList.toggle('glass', s.cardAlpha < 100);
   document.body.dataset.material = MATERIALS[s.material] ? s.material : 'solid';
+  const glass = s.glassTint === 'clear' ? 'transparent' : s.glassTint === 'color' ? s.glassColor : s.glassTint === 'cover' ? (musicTint || s.glassColor) : null;
+  if (glass) root.setProperty('--glass', glass); else root.removeProperty('--glass');
+  document.body.dataset.glass = s.glassTint || 'theme';
+  let art = $('#scene-art');
+  if (s.scene === 'coverart' && coverArt && !s.bgImage) {
+    if (!art) { art = h('i', { id: 'scene-art', 'aria-hidden': 'true' }); $('#backdrop').append(art); }
+    const url = `url("${coverArt.replace(/"/g, '%22')}")`;
+    if (art.style.backgroundImage !== url) art.style.backgroundImage = url;
+    art.hidden = false;
+  } else if (art) art.hidden = true;
+  lens.update(s.material === 'liquid' && s.refract !== false);
   document.body.classList.toggle('dock-hide', !!s.dockHide);     // the add bar stays out of sight until the mouse nears the bottom edge
   tick();
 }
@@ -2278,15 +2596,31 @@ let finder = null;                                      // { box, rows, pick }
 function setupFinder() {
   const box = h('div', { id: 'finder', role: 'listbox', hidden: true });
   $('#search').append(box);
-  searchInput.setAttribute('placeholder', 'Search Homeboard and the web');
+  searchInput.setAttribute('placeholder', 'Search Homeboard and the web  ·  > for commands');
   searchInput.setAttribute('aria-label', 'Search Homeboard and the web');
   finder = { box, rows: [], pick: 0 };
   let timer = 0;
   const draw = () => {
     const q = searchInput.value.trim();
     if (!q || document.activeElement !== searchInput) { box.hidden = true; finder.rows = []; return; }
+    finder.cmd = /^[>\/]/.test(q);
+    if (finder.cmd) {                                   // ">": commands only, the first one ready for Enter
+      const cq = fold(q.slice(1).trim());
+      finder.rows = commandOrder(cq).slice(0, 12).map(c => ({ kind: 'command', icon: 'chev', label: c.label, sub: '', go: c.run }));
+      finder.pick = 0;
+      box.replaceChildren(...finder.rows.map((it, i) => {
+        const row = h('div', { class: 'finder-row' + (i === 0 ? ' on' : ''), role: 'option' }, h('span', { class: 'finder-ico' }, icon('chev')), h('div', { class: 'finder-text' }, h('div', { class: 'finder-label' }, it.label)), h('span', { class: 'finder-kind' }, 'command'));
+        row.addEventListener('pointerdown', e => { e.preventDefault(); run(it); });
+        row.addEventListener('pointermove', () => mark(i));
+        return row;
+      }));
+      if (!finder.rows.length) box.append(h('div', { class: 'finder-none' }, 'No command matches.'));
+      box.hidden = false;
+      return;
+    }
     const looksLikeAddress = /^https?:\/\//i.test(q) || /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(q);
-    const hits = finderIndex().map(it => [finderScore(q, it), it]).filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 8).map(([, it]) => it);
+    const cmds = q.length >= 3 ? commandList().map(c => ({ kind: 'command', icon: 'chev', label: c.label, sub: 'Command', text: c.words, go: c.run })) : [];
+    const hits = [...finderIndex(), ...cmds].map(it => [finderScore(q, it), it]).filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 8).map(([, it]) => it);
     const web = { kind: 'web', icon: looksLikeAddress ? 'external' : 'web', label: looksLikeAddress ? `Go to ${q}` : `Search the web for “${q}”`, sub: looksLikeAddress ? '' : (state.settings.engine || 'bing').replace(/^./, m => m.toUpperCase()), web: true };
     finder.rows = [web, ...hits];
     finder.pick = 0;
@@ -2296,7 +2630,7 @@ function setupFinder() {
         it.chip ? h('span', { class: 'finder-chip' }, it.chip) : h('span', { class: 'finder-ico' }, icon(it.icon)),
         h('div', { class: 'finder-text' }, h('div', { class: 'finder-label' }, it.web ? it.label : marked(it.label, q)),
           (extra || it.sub) && h('div', { class: 'finder-sub' }, extra ? marked(extra, q) : it.sub)),
-        !it.web && i > 0 && h('span', { class: 'finder-kind' }, { board: 'board', view: 'view', link: 'link', app: 'app', note: 'note', todo: 'to-do', web: 'website', files: 'files', term: 'console', media: 'media', widget: 'widget', apps: 'apps', space: 'workspace' }[it.kind] || ''));
+        !it.web && i > 0 && h('span', { class: 'finder-kind' }, { command: 'command', board: 'board', view: 'view', link: 'link', app: 'app', note: 'note', todo: 'to-do', web: 'website', files: 'files', term: 'console', media: 'media', widget: 'widget', apps: 'apps', space: 'workspace' }[it.kind] || ''));
       row.addEventListener('pointerdown', e => { e.preventDefault(); finder.pick = i; if (it.web) $('#search').requestSubmit(); else run(it); });
       row.addEventListener('pointermove', () => { if (finder.pick !== i) mark(i); });
       return row;
@@ -2309,17 +2643,18 @@ function setupFinder() {
   finder.run = run;
   searchInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 40); });
   searchInput.addEventListener('focus', draw);
-  searchInput.addEventListener('blur', () => setTimeout(() => { box.hidden = true; }, 120));
+  searchInput.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== searchInput) box.hidden = true; }, 120));   // not if it came back meanwhile
   searchInput.addEventListener('keydown', e => {
     if (box.hidden || !finder.rows.length) return;
     if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) { e.preventDefault(); mark((finder.pick + 1) % finder.rows.length); }
     else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) { e.preventDefault(); mark((finder.pick - 1 + finder.rows.length) % finder.rows.length); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (searchInput.value) { searchInput.value = ''; draw(); } else searchInput.blur(); }
-    else if (e.key === 'Enter' && finder.pick > 0) { e.preventDefault(); finderPick(); }
+    else if (e.key === 'Enter' && (finder.pick > 0 || finder.cmd)) { e.preventDefault(); finderPick(); }
   });
   addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.target.closest?.('.xterm')) { e.preventDefault(); searchInput.focus(); searchInput.select(); } }, true);
 }
 function finderPick() {                                 // Enter: the row picked with the arrows (the first row is the web search)
+  if (finder && !finder.box.hidden && finder.cmd && finder.rows[finder.pick]) { finder.run(finder.rows[finder.pick]); return true; }
   if (!finder || finder.box.hidden || !finder.pick) return false;
   const it = finder.rows[finder.pick];
   if (!it || it.web) return false;
@@ -4133,15 +4468,24 @@ function wire() {
 
   setupFinder();
   window.HomeboardMusic?.subscribe(st => {            // "colours follow the music"
+    const big = st && st.art ? window.HomeboardMusic.big(st.art) : '';
+    if (big !== coverArt) { coverArt = big; if (/^cover/.test(shown().scene)) applySettings(); }
     if (!st || !st.art) { if (musicTint) { musicTint = null; applySettings(); } return; }
-    window.HomeboardMusic.palette(st.art).then(p => { const next = p && p.vivid; if (next !== musicTint) { musicTint = next; if (shown().musicAccent) applySettings(); } });
+    window.HomeboardMusic.palette(st.art).then(p => { coverPalette = p; const next = p && p.vivid; if (next !== musicTint) { musicTint = next; const sh = shown(); if (sh.musicAccent || sh.glassTint === 'cover' || sh.scene === 'cover') applySettings(); } });
   });
   nowPlaying.setup();
+  fx.refresh();
   $('#search').addEventListener('submit', e => {
     e.preventDefault();
     if (finderPick()) return;                           // a Homeboard result was chosen
     const q = searchInput.value.trim();
     if (!q) return;
+    if (/^[>/]/.test(q)) {                              // a command, never a web search
+      const cq = fold(q.slice(1).trim()), c = commandOrder(cq)[0];
+      searchInput.value = ''; searchInput.blur(); finder.box.hidden = true;
+      if (c) c.run(); else toast('No command matches “' + q.slice(1).trim() + '”.');
+      return;
+    }
     const looksLikeAddress = /^https?:\/\//i.test(q) || /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(q);
     if (!navigator.onLine) { toast('You are offline, so a web search cannot open right now. Everything on the board still works.'); return; }
     location.href = (looksLikeAddress && normalizeUrl(q)) || (ENGINES[state.settings.engine] || ENGINES.bing) + encodeURIComponent(q);
@@ -4284,6 +4628,7 @@ function wire() {
   document.addEventListener('keydown', e => {
     if (e.target.closest?.('.xterm')) return;          // a console card: every key is the program's
     if (e.key === 'Escape') {
+      if (ambient.on) { ambient.toggle(false); return; }
       if (!menu.hidden) closeMenu();
       else if (closePeek()) { /* closed the preview */ }
       else if (expanded && !isEditable(e.target)) collapseCard();

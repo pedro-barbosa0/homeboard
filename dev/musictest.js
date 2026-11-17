@@ -92,6 +92,18 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
       const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid);
       fs.writeFileSync(path.join(outDir, 'music-' + look.split(' ')[0].toLowerCase() + '.png'), Buffer.from(data, 'base64'));
     }
+    // the cover itself as the backdrop, under liquid glass (commands typed in the search box)
+    for (const c of ['backdrop cover art', 'material liquid', 'glass colour clear']) {
+      await ev(`document.querySelector('#search-input').focus()`);
+      await send('Input.insertText', { text: '>' + c }, sid);
+      await sleep(300);
+      for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'keyDown' ? String.fromCharCode(13) : undefined }, sid);
+      await sleep(400);
+    }
+    await sleep(1500);
+    const sceneArt = await ev(`(() => { const a = document.querySelector('#scene-art'); return a && !a.hidden ? a.style.backgroundImage.slice(0, 60) : ''; })()`);
+    ok('the cover of the song can be the backdrop', sceneArt.startsWith('url("https:'), sceneArt);
+    if (outDir) { const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid); fs.writeFileSync(path.join(outDir, 'music-coverart.png'), Buffer.from(data, 'base64')); }
     const errs = await ev(`JSON.stringify(window.__errs)`);
     ok('no script errors', errs === '[]', errs);
   } catch (e) { if (e.message !== 'no playback') { console.log('ERROR', e.stack || e.message); results.push(false); } }

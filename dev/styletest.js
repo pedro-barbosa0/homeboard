@@ -77,7 +77,7 @@ const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-T
     await ev(`[...document.querySelectorAll('#toast button')].find(b => b.textContent === 'Undo').click()`);
     await sleep(400);
     st = await stored();
-    ok('Undo puts the previous kit back (Calm dawn), widgets too', st.settings.material === 'liquid' && st.settings.scene === 'dawn' && st.boards[1].cards[0].data.look === 'pill', JSON.stringify([st.settings.material, st.boards[1].cards[0].data.look]));
+    ok('Undo puts the previous kit back (Calm dawn), widgets too', st.settings.material === 'liquid' && st.settings.scene === 'aurora' && st.boards[1].cards[0].data.look === 'pill', JSON.stringify([st.settings.material, st.boards[1].cards[0].data.look]));
     await ev(`[...document.querySelectorAll('#style-sec .kit')].find(k => /Shuffle/.test(k.textContent)).click()`);
     await sleep(400);
     st = await stored();
