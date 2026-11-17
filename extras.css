@@ -280,3 +280,37 @@ body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
 .web-live { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; cursor: pointer; }
 .web-live-stop { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .15s; background: rgb(0 0 0 / .55); color: #fff; }
 .web-frame:hover .web-live-stop { opacity: 1; }
+
+/* peek: a link shown big over the board */
+.peek { position: fixed; inset: 0; z-index: 950; display: grid; place-items: center; background: rgb(0 0 0 / 0); transition: background .18s ease; }
+.peek.open { background: rgb(0 0 0 / .42); }
+.peek-panel {
+  width: min(1180px, calc(100vw - 80px)); height: calc(100vh - 90px); display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 30px 90px rgb(0 0 0 / .55);
+  transform: scale(.94) translateY(10px); opacity: 0; transition: transform .2s cubic-bezier(.2, .8, .2, 1), opacity .15s ease;
+}
+.peek.open .peek-panel { transform: none; opacity: 1; }
+.peek-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; border-bottom: 1px solid var(--border); flex: none; }
+.peek-name { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.peek-name b, .peek-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.peek-name span { font-size: .8em; color: var(--muted); }
+.peek-frame { position: relative; flex: 1; background: #fff; }
+.peek-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+@media (prefers-reduced-motion: reduce) { .peek, .peek-panel { transition: none; } }
+/* the finder under the search box */
+#search { position: relative; }
+#finder {
+  position: absolute; left: -1px; right: -1px; top: calc(100% + 6px); z-index: 1020; max-height: min(460px, 70vh); overflow: auto; padding: 5px;
+  border-radius: 12px; background: var(--raise); border: 1px solid var(--border); box-shadow: 0 18px 50px rgb(0 0 0 / .45); color: var(--text);
+}
+.finder-row { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 9px; cursor: pointer; }
+.finder-row.on { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.finder-ico, .finder-chip { flex: none; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--accent); }
+.finder-ico svg { width: 15px; height: 15px; }
+.finder-chip { font-size: 11px; font-weight: 700; }
+.finder-text { flex: 1; min-width: 0; }
+.finder-label, .finder-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.finder-sub { font-size: .8em; color: var(--muted); margin-top: 1px; }
+.finder-kind { flex: none; font-size: .72em; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+#finder mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.finder-none { padding: 8px 10px 6px; color: var(--muted); font-size: .85em; }

@@ -1457,6 +1457,7 @@ function cardItems(c) {
       } },
       { info: 'Or hold Ctrl and scroll over the selected card.' },
     ] },
+    c.type === 'links' && { label: 'One click shows a preview (two clicks open)', checked: !c.direct, action() { c.direct = !c.direct; save(); } },
     c.type === 'web' && { label: 'Show only the website (no frame)', checked: !!c.plain, action() { c.plain = !c.plain; refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Hide the scroll bars', checked: hidesBars(c), action() { c.noScroll = !hidesBars(c); refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Always open in its own window', checked: !!c.own, action() { c.own = !c.own; refreshCard(c); save(); } },
@@ -1850,6 +1851,171 @@ function openLink(l, how = l.how) {
   else toast(localHint());
 }
 
+/* ---- peek: a link shown big over the board without leaving it (like Arc's Peek or Quick Look).
+   One click on a link tile peeks, two clicks open it for real. Esc, a click beside it, or ✕ closes it. ---- */
+const WEB_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation allow-pointer-lock allow-orientation-lock allow-storage-access-by-user-activation';
+const WEB_ALLOW = 'fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-read; clipboard-write; camera; microphone; display-capture; geolocation; web-share; storage-access; screen-wake-lock';
+let peekEl = null;
+function closePeek() {
+  if (!peekEl) return false;
+  const el = peekEl;
+  peekEl = null;
+  frameWatch.delete('peek');
+  el.classList.remove('open');
+  setTimeout(() => el.remove(), 160);
+  return true;
+}
+function peek(url, title, open) {
+  closePeek();
+  if (isLocal(url) && !fileAccess) { toast(localHint()); return; }
+  let pdf = false;
+  try { pdf = /\.pdf$/i.test(new URL(url).pathname); } catch { /* not a URL */ }
+  const trusted = isLocal(url) || pdf;
+  const frame = h('div', { class: 'peek-frame' }, h('iframe', {
+    src: embedUrl(url), name: 'hb:peek', title: title || titleOf(url), sandbox: !trusted && WEB_SANDBOX, allow: WEB_ALLOW, referrerpolicy: 'strict-origin-when-cross-origin',
+  }));
+  const go = () => { closePeek(); open(); };
+  const panel = h('div', { class: 'peek-panel', role: 'dialog', 'aria-label': 'Preview of ' + (title || titleOf(url)) },
+    h('div', { class: 'peek-head' },
+      h('div', { class: 'peek-name' }, h('b', null, title || titleOf(url)), h('span', null, addressLabel(url))),
+      h('button', { class: 'btn primary', type: 'button', title: 'Open it (or double-click the link)', onclick: go }, isLocal(url) ? 'Open' : 'Open here'),
+      !isLocal(url) && h('button', { class: 'btn', type: 'button', title: 'Open it in a new tab', onclick() { closePeek(); window.open(url, '_blank', 'noopener'); } }, 'New tab'),
+      !isLocal(url) && h('button', { class: 'btn', type: 'button', title: 'Open it in a real Edge window over the board', async onclick() { const r = frame; await openBeside(url, r); closePeek(); } }, 'Own window'),
+      h('button', { class: 'icon-btn', type: 'button', title: 'Close (Esc)', 'aria-label': 'Close', onclick: closePeek }, icon('x'))),
+    frame);
+  peekEl = h('div', { class: 'peek' }, panel);
+  peekEl.addEventListener('pointerdown', e => { if (e.target === peekEl) closePeek(); });
+  document.body.append(peekEl);
+  requestAnimationFrame(() => peekEl?.classList.add('open'));
+  if (trusted || !api?.runtime?.id) return;
+  // the site says from inside whether it showed (frame.js); a silent one offers the real thing
+  let heard = false;
+  const note = (text, ...buttons) => { frame.querySelector('.web-notice')?.remove(); frame.append(h('div', { class: 'web-notice', role: 'status' }, h('span', null, text), ...buttons)); };
+  frameWatch.set('peek', msg => {
+    heard = true;
+    if (msg.kind === 'signin') note('This site wants you to sign in, which it only allows in a real window.', h('button', { class: 'btn primary', type: 'button', onclick: go }, 'Open here'));
+    else frame.querySelector('.web-notice')?.remove();
+  });
+  const me = peekEl;
+  setTimeout(() => { if (!heard && peekEl === me && navigator.onLine) note('Not showing? Some sites refuse to be shown inside other pages.', h('button', { class: 'btn primary', type: 'button', onclick: go }, 'Open here'), h('button', { class: 'btn', type: 'button', onclick() { closePeek(); window.open(url, '_blank', 'noopener'); } }, 'New tab')); }, 9000);
+}
+
+/* ---- the finder: typing in the search box also lists what matches on Homeboard (boards, views, cards and
+   what is in them, links, apps), like a command palette (VS Code, Raycast, Spotlight). The first row stays
+   "search the web", so Enter works as before; ↓ / ↑ pick a result, Enter or a click goes there. Ctrl+K opens it. ---- */
+const fold = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const plain = html => String(html || '').replace(/<(br|\/p|\/div|\/li|\/h\d)[^>]*>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+function finderIndex() {
+  const out = [];
+  const path = b => { const parts = []; for (let p = boardById(b.parent), n = 0; p && n < 20; p = boardById(p.parent), n++) parts.unshift(p.name); return parts.concat(b.name).join(' › '); };
+  for (const b of state.boards) {
+    const where = path(b);
+    out.push({ kind: 'board', icon: 'home', label: b.name, sub: b.parent ? where : 'Board', text: '', go: () => followBoardLink(`homeboard:board/${b.id}`), chip: b.icon || initials(b.name) });
+    for (const p of b.views || []) out.push({ kind: 'view', icon: 'views', label: p.name, sub: 'View on ' + where, text: '', go: () => followBoardLink(`homeboard:board/${b.id}/view/${p.id}`) });
+    for (const c of b.cards) {
+      const go = () => followBoardLink(`homeboard:board/${b.id}/card/${c.id}`);
+      let text = '';
+      if (c.type === 'note' && !c.lock) text = c.markdown ? c.md : plain(c.html);
+      else if (c.type === 'todo') text = c.items.map(i => [i.text, ...i.steps.map(x => x.text), i.note].join('\n')).join('\n');
+      else if (c.type === 'web') text = addressLabel(c.url);
+      else if (c.type === 'files') text = addressLabel(c.path);
+      else if (c.type === 'term') text = c.cwd;
+      else if (c.type === 'space') text = (c.items || []).map(i => i.name).join(' · ');
+      out.push({ kind: c.type, icon: c.type === 'widget' ? 'widget' : c.type, label: c.title, sub: where, text, go });
+      if (c.type === 'links') for (const l of c.links) {
+        const name = l.title || (BOARD_LINK.test(l.url) ? boardLinkName(l.url) : titleOf(l.url));
+        out.push({ kind: 'link', icon: 'links', label: name, sub: `${addressLabel(l.url)} · ${c.title}, ${b.name}`, text: l.url,
+          go: () => (BOARD_LINK.test(l.url) ? followBoardLink(l.url) : isLocal(l.url) ? openLink(l) : peek(l.url, name, () => { location.href = l.url; })) });
+      }
+      if (c.type === 'apps') for (const it of c.apps || []) out.push({ kind: 'app', icon: 'apps', label: it.name, sub: `App · ${c.title}, ${b.name}`, text: '', go });
+    }
+  }
+  return out;
+}
+/* How well a query fits: whole words at the start of the name first, then inside it, then in the text; every word must be found. */
+function finderScore(q, it) {
+  const words = fold(q).split(/\s+/).filter(Boolean), name = fold(it.label), body = fold(it.text) + ' ' + fold(it.sub);
+  let score = 0;
+  for (const w of words) {
+    const i = name.indexOf(w);
+    if (i === 0) score += 100; else if (i > 0) score += /[\s\-_.›]/.test(name[i - 1]) ? 80 : 55;
+    else if (body.includes(w)) score += 25;
+    else return 0;
+  }
+  if (name === fold(q)) score += 60;
+  return score + (it.kind === 'board' ? 8 : it.kind === 'view' ? 6 : 0) - Math.min(20, name.length / 8);
+}
+function snippet(text, q) {                             // the words around the first match in the text
+  const t = String(text || '').replace(/\s+/g, ' '), f = fold(t), w = fold(q).split(/\s+/).filter(Boolean)[0] || '';
+  const i = w ? f.indexOf(w) : -1;
+  if (i < 0) return '';
+  const a = Math.max(0, i - 36), b = Math.min(t.length, i + w.length + 60);
+  return (a ? '…' : '') + t.slice(a, b) + (b < t.length ? '…' : '');
+}
+function marked(text, q) {                              // the text with the query's words highlighted
+  const words = fold(q).split(/\s+/).filter(w => w.length > 0);
+  const f = fold(text), hits = [];
+  for (const w of words) { let i = f.indexOf(w); while (i >= 0 && hits.length < 20) { hits.push([i, i + w.length]); i = f.indexOf(w, i + w.length); } }
+  hits.sort((x, y) => x[0] - y[0]);
+  const frag = document.createDocumentFragment();
+  let at = 0;
+  for (const [a, b] of hits) { if (a < at) continue; frag.append(text.slice(at, a), h('mark', null, text.slice(a, b))); at = b; }
+  frag.append(text.slice(at));
+  return frag;
+}
+let finder = null;                                      // { box, rows, pick }
+function setupFinder() {
+  const box = h('div', { id: 'finder', role: 'listbox', hidden: true });
+  $('#search').append(box);
+  searchInput.setAttribute('placeholder', 'Search Homeboard and the web');
+  searchInput.setAttribute('aria-label', 'Search Homeboard and the web');
+  finder = { box, rows: [], pick: 0 };
+  let timer = 0;
+  const draw = () => {
+    const q = searchInput.value.trim();
+    if (!q || document.activeElement !== searchInput) { box.hidden = true; finder.rows = []; return; }
+    const looksLikeAddress = /^https?:\/\//i.test(q) || /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(q);
+    const hits = finderIndex().map(it => [finderScore(q, it), it]).filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 8).map(([, it]) => it);
+    const web = { kind: 'web', icon: looksLikeAddress ? 'external' : 'web', label: looksLikeAddress ? `Go to ${q}` : `Search the web for “${q}”`, sub: looksLikeAddress ? '' : (state.settings.engine || 'bing').replace(/^./, m => m.toUpperCase()), web: true };
+    finder.rows = [web, ...hits];
+    finder.pick = 0;
+    box.replaceChildren(...finder.rows.map((it, i) => {
+      const extra = !it.web && it.text && !fold(it.label).includes(fold(q).split(/\s+/)[0]) ? snippet(it.text, q) : '';
+      const row = h('div', { class: 'finder-row' + (i === 0 ? ' on' : ''), role: 'option', 'aria-selected': String(i === 0) },
+        it.chip ? h('span', { class: 'finder-chip' }, it.chip) : h('span', { class: 'finder-ico' }, icon(it.icon)),
+        h('div', { class: 'finder-text' }, h('div', { class: 'finder-label' }, it.web ? it.label : marked(it.label, q)),
+          (extra || it.sub) && h('div', { class: 'finder-sub' }, extra ? marked(extra, q) : it.sub)),
+        !it.web && i > 0 && h('span', { class: 'finder-kind' }, { board: 'board', view: 'view', link: 'link', app: 'app', note: 'note', todo: 'to-do', web: 'website', files: 'files', term: 'console', media: 'media', widget: 'widget', apps: 'apps', space: 'workspace' }[it.kind] || ''));
+      row.addEventListener('pointerdown', e => { e.preventDefault(); finder.pick = i; if (it.web) $('#search').requestSubmit(); else run(it); });
+      row.addEventListener('pointermove', () => { if (finder.pick !== i) mark(i); });
+      return row;
+    }));
+    if (hits.length === 0) box.append(h('div', { class: 'finder-none' }, 'Nothing on Homeboard matches.'));
+    box.hidden = false;
+  };
+  const mark = i => { finder.pick = i; [...box.querySelectorAll('.finder-row')].forEach((r, k) => { r.classList.toggle('on', k === i); r.setAttribute('aria-selected', String(k === i)); if (k === i) r.scrollIntoView({ block: 'nearest' }); }); };
+  const run = it => { box.hidden = true; searchInput.value = ''; searchInput.blur(); it.go(); };
+  finder.run = run;
+  searchInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 40); });
+  searchInput.addEventListener('focus', draw);
+  searchInput.addEventListener('blur', () => setTimeout(() => { box.hidden = true; }, 120));
+  searchInput.addEventListener('keydown', e => {
+    if (box.hidden || !finder.rows.length) return;
+    if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) { e.preventDefault(); mark((finder.pick + 1) % finder.rows.length); }
+    else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) { e.preventDefault(); mark((finder.pick - 1 + finder.rows.length) % finder.rows.length); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (searchInput.value) { searchInput.value = ''; draw(); } else searchInput.blur(); }
+    else if (e.key === 'Enter' && finder.pick > 0) { e.preventDefault(); finderPick(); }
+  });
+  addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); searchInput.focus(); searchInput.select(); } }, true);
+}
+function finderPick() {                                 // Enter: the row picked with the arrows (the first row is the web search)
+  if (!finder || finder.box.hidden || !finder.pick) return false;
+  const it = finder.rows[finder.pick];
+  if (!it || it.web) return false;
+  finder.run(it);
+  return true;
+}
+
 function buildLinks(c, body) {
   const grid = h('div', { class: 'links-grid' });
   let form = null;
@@ -1877,7 +2043,16 @@ function buildLinks(c, body) {
     }
     const a = h('a', { class: 'link-tile', href: local ? '#' : l.url, title: inner ? 'Go to ' + boardLinkName(l.url) : addressLabel(l.url), draggable: 'false', rel: 'noopener' },
       ico, h('span', { class: 'link-name' }, name));
-    if (local) a.addEventListener('click', e => { e.preventDefault(); openLink(l); });
+    // one click: a preview (peek); two clicks: open it. Ctrl / Shift / middle click keep the browser's own behaviour.
+    const open = () => { if (local) openLink(l); else location.href = l.url; };
+    let wait = 0;
+    if (!inner) a.addEventListener('click', e => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) { if (local) e.preventDefault(); return; }
+      e.preventDefault();
+      clearTimeout(wait);
+      if (c.direct || e.detail >= 2) { closePeek(); open(); return; }
+      wait = setTimeout(() => peek(l.url, name, open), 230);
+    });
     a.addEventListener('contextmenu', e => {
       e.preventDefault();
       openMenu(e.clientX, e.clientY, [
@@ -2894,8 +3069,73 @@ function onPaste(e) {
   if (address) addCard('web', pointerSpot(), { url: address, title: titleOf(address) });
   else addCard('note', pointerSpot(), { markdown: true, md: text });
 }
+/* Files dragged out of a file browser onto the board: a menu of what to make of them, the likely one first. */
+const FILE_TAKERS = '.card-files, .card-apps, .card-space, .files-browser';
+const fileText = url => new Promise((res, rej) => {
+  const x = new XMLHttpRequest();
+  x.open('GET', url);
+  x.onload = () => (x.status === 0 || x.status === 200 ? res(x.responseText) : rej(new Error('unreadable')));
+  x.onerror = () => rej(new Error('unreadable'));
+  x.send();
+});
+const fileBlob = url => new Promise((res, rej) => {
+  const x = new XMLHttpRequest();
+  x.open('GET', url); x.responseType = 'blob';
+  x.onload = () => (x.response ? res(x.response) : rej(new Error('unreadable')));
+  x.onerror = () => rej(new Error('unreadable'));
+  x.send();
+});
+const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp', svg: 'image/svg+xml',
+  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/mp4', ogv: 'video/ogg', pdf: 'application/pdf' };
+function dropFiles(paths, at, x, y) {
+  const list = [].concat(paths).filter(p => typeof p === 'string' && p).slice(0, 20).map(p => {
+    const url = toAddress(p), name = p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p, ext = ((/\.([^.\\/]+)$/.exec(name) || [])[1] || '').toLowerCase();
+    return { path: p, url, name, ext, kind: !ext ? 'folder' : fileKind(name) };
+  }).filter(f => f.url);
+  if (!list.length) return;
+  if (!fileAccess) { toast(localHint()); return; }
+  const many = list.length > 1, step = i => ({ x: at.x + i * 30, y: at.y + i * 30 });
+  const texts = list.filter(f => f.kind === 'text'), pics = list.filter(f => ['image', 'video', 'pdf'].includes(f.kind)), dirs = list.filter(f => f.kind === 'folder');
+  const asNotes = async () => {
+    let i = 0;
+    for (const f of texts) {
+      try {
+        const t = (await fileText(f.url)).slice(0, 1000000);
+        const md = /^(md|markdown|txt|text)$/.test(f.ext) ? t : '```' + f.ext + '\n' + t.replace(/\n$/, '') + '\n```';
+        addCard('note', step(i++), { title: f.name, named: true, markdown: true, md, w: 380, h: 360 });
+      } catch { toast(`“${f.name}” could not be read.`); }
+    }
+  };
+  const asMedia = async () => {
+    const files = [];
+    for (const f of pics) { try { const b = await fileBlob(f.url); files.push(new File([b], f.name, { type: MIME[f.ext] || b.type })); } catch { toast(`“${f.name}” could not be read.`); } }
+    if (files.length) addMediaFiles(files, at);
+  };
+  const asViews = () => list.forEach((f, i) => (f.kind === 'folder'
+    ? addCard('files', step(i), { path: f.url.replace(/\/?$/, '/'), title: f.name, named: true })
+    : addCard('web', step(i), { url: f.url, title: f.name, named: true })));
+  const asLinks = () => addCard('links', at, { title: many ? 'Files' : list[0].name, links: list.map(f => ({ id: uid(), title: f.name, url: f.url, how: f.kind === 'folder' ? 'explorer' : 'tab' })) });
+  const what = many ? `these ${list.length}` : `“${list[0].name}”`;
+  openMenu(x, y, [
+    { info: `Put ${what} on the board as…` },
+    texts.length && { label: texts.length > 1 || many ? 'Notes with their text' : 'A note with its text', icon: 'note', action: asNotes },
+    pics.length && { label: pics.length > 1 ? 'Pictures / videos / PDFs on the board' : list[0].kind === 'pdf' ? 'The PDF on the board' : 'The picture on the board', icon: 'media', action: asMedia },
+    dirs.length && !texts.length && !pics.length && { label: dirs.length > 1 ? 'File browsers' : 'A file browser of this folder', icon: 'files', action: asViews },
+    (texts.length || pics.length || list.some(f => f.kind === 'other')) && { label: many ? 'Windows showing the files' : 'A window showing the file (stays up to date)', icon: 'web', action: asViews },
+    { label: many ? 'Links to them' : 'A link to it', icon: 'links', action: asLinks },
+  ]);
+}
+
 function onDrop(e) {
-  if (e.dataTransfer.types.includes(FILES_DND)) return;                          // a file dragged between file browsers
+  if (e.dataTransfer.types.includes(FILES_DND)) {                                // a file from a file browser
+    if (e.target.closest?.(FILE_TAKERS)) return;                                  // file browsers, apps and workspaces take it themselves
+    e.preventDefault();
+    document.body.classList.remove('dropping');
+    let paths = [];
+    try { paths = JSON.parse(e.dataTransfer.getData(FILES_DND)); } catch { return; }
+    dropFiles(paths, toWorld(e.clientX, e.clientY), e.clientX, e.clientY);
+    return;
+  }
   if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;   // dropping text into a field
   e.preventDefault();
   const dt = e.dataTransfer, at = toWorld(e.clientX, e.clientY);
@@ -3279,7 +3519,11 @@ function wire() {
   }, { passive: true });
   document.documentElement.addEventListener('pointerleave', () => document.body.classList.remove('dock-near'));
   addEventListener('dragover', e => {
-    if (e.dataTransfer.types.includes(FILES_DND)) return;
+    if (e.dataTransfer.types.includes(FILES_DND)) {                // from a file browser: the board takes it unless a card that takes files is under it
+      if (e.target.closest?.(FILE_TAKERS)) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+      return;
+    }
     if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
     e.preventDefault();                                 // otherwise the browser opens a dropped file instead
     e.dataTransfer.dropEffect = 'copy';
@@ -3294,8 +3538,10 @@ function wire() {
   $('#zoom-views').addEventListener('contextmenu', e => { e.preventDefault(); goHome(); });
   $('#zoom-label').addEventListener('click', () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / board().view.z));
 
+  setupFinder();
   $('#search').addEventListener('submit', e => {
     e.preventDefault();
+    if (finderPick()) return;                           // a Homeboard result was chosen
     const q = searchInput.value.trim();
     if (!q) return;
     const looksLikeAddress = /^https?:\/\//i.test(q) || /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(q);
@@ -3440,6 +3686,7 @@ function wire() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (!menu.hidden) closeMenu();
+      else if (closePeek()) { /* closed the preview */ }
       else if (expanded && !isEditable(e.target)) collapseCard();
       else if (!panel.hidden) panel.hidden = true;
       else { document.activeElement?.blur?.(); select(null); }

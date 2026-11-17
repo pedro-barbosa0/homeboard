@@ -176,13 +176,30 @@ the number of places; click it to go to the others or **Make this one
 separate**. Colour, size and place stay each copy's own. (Pasting a note's text
 inside another note pastes just the text, as before.)
 
+**Search** — the search box at the top also finds things on Homeboard as you
+type: boards, views, cards by name, the words inside notes and to-do lists,
+links, apps and website addresses (accents do not matter). The first row stays
+"Search the web", so Enter works as before; ↓ / ↑ (or Tab) pick a Homeboard
+result and Enter (or a click) goes there, opening its board and centring the
+card. **Ctrl+K** or `/` puts the cursor there.
+
+**Files onto the board** — drag a file from a file browser card onto empty
+board and choose what to make of it: a **note with its text** (Markdown and
+`.txt` as they are, code in a code block), the **picture / video / PDF on the
+board**, a **window showing the file** (stays up to date), a **file browser** for
+a folder, or a **link** to it. Several files at once work too.
+
 **Saved views** — the bookmark button next to the zoom: **Save this view**, jump to saved views, **Back to the start view** (also the **Home** key, or right-click the bookmark button), make any view the start view, and **Lock the view** so the board cannot be moved or zoomed by accident. Keys **1–9** jump to saved views in order. Each board keeps its own.
 
 **To-do lists** — the small arrow on a task opens its details: steps, notes, a
 link to open later, a due date and a star.
 
 **Links** — an address can be a website or a folder/file on this computer; for
-those you choose "Open in a browser tab" or "Open in File Explorer".
+those you choose "Open in a browser tab" or "Open in File Explorer". **One click
+peeks**: the site (or file) shows big over the board, to glance at it and go back
+(Esc or a click beside it); from there **Open here**, **New tab** or **Own window**.
+**Two clicks open it** straight away; Ctrl-click opens a new tab as usual.
+Right-click the card → "One click shows a preview" switches peeking off for it.
 
 **Website windows** — they get what a normal tab gets (downloads, dialogs, casting, camera and microphone when the site asks), except replacing the board. If a site does not show within a few seconds, the window offers to open it **in its own window**: a real Edge window placed over the card, where every site works; **Always** keeps that choice for the window (also in its right-click menu, **Always open in its own window**). Once its own window is open, the card offers **Show it live here**: Edge asks once which tab to share (pick the one named in the message) and the card then shows that window live, like a screen share in a call — the window keeps the card's size and keeps drawing behind the board. Click the picture to use the site: the real window comes exactly over the card. The ✕ on the picture stops showing it live. When a site sends you to a sign-in page that refuses to be inside another page (Google, Microsoft, Apple), the window offers **Sign in** in a real window and reloads when you close it. Right-click its top edge → **Show only the website (no frame)** hides the title and address bar, and the site’s own scroll bars (scroll with the wheel or touchpad; **Hide the scroll bars** turns this on or off for any website window): drag the site to move it until you click into it, then the thin strip along its top edge moves it and opens the menu. The window button opens a site in its own window beside the board, for sites that will not show inside it. Type an address, a `.pdf` link, a folder such as
 `C:\Users\you\Downloads\`, or just words to search. An empty window offers
@@ -271,6 +288,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/peektest.js` | Checks peeking at links, files dropped on the board, and the search finder |
 | `dev/taptest.js` | Checks the visualiser hearing another tab by itself, at two sizes |
 | `dev/linkstest.js` | Checks dragging boards, dropping cards on boards, links to boards / views / cards, linked notes |
 | `dev/navtest.js` | Checks moving around (real wheel, pinch, flick, Space-drag), Expand, text size, the Apps and Workspace cards, and live own windows |
