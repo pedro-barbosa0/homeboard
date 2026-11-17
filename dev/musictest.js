@@ -79,6 +79,19 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
       const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid);
       fs.writeFileSync(path.join(outDir, 'music.png'), Buffer.from(data, 'base64'));
     }
+    // a picture frame shows the cover of what plays; every look of the widget, photographed
+    await ev(`(() => { document.querySelector('[data-add="widget"]').click(); [...document.querySelectorAll('#menu .menu-item')].find(b => b.textContent.trim() === 'Picture frame').click(); })()`);
+    await sleep(1500);
+    const cover = await ev(`document.querySelector('.pf .pf-img')?.src || ''`);
+    ok('a picture frame shows the cover of the song', /^https:/.test(cover) && !(await ev(`document.querySelector('.pf .pf-img').hidden`)), cover.slice(0, 80));
+    if (outDir) for (const look of ['Liquid glass', 'Ambient (big cover glow)', 'Vinyl record', 'Framed cover', 'Compact pill']) {
+      await ev(`(() => { const w = document.querySelector('.ytm'), r = w.getBoundingClientRect(); w.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.x + 30, clientY: r.y + 30 }));
+        [...document.querySelectorAll('#menu .menu-item')].find(b => b.textContent.trim().startsWith('Look')).click();
+        [...document.querySelectorAll('#menu .menu-item')].find(b => b.textContent.trim() === ${JSON.stringify(look)}).click(); })()`);
+      await sleep(1800);
+      const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid);
+      fs.writeFileSync(path.join(outDir, 'music-' + look.split(' ')[0].toLowerCase() + '.png'), Buffer.from(data, 'base64'));
+    }
     const errs = await ev(`JSON.stringify(window.__errs)`);
     ok('no script errors', errs === '[]', errs);
   } catch (e) { if (e.message !== 'no playback') { console.log('ERROR', e.stack || e.message); results.push(false); } }

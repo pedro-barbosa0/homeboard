@@ -253,7 +253,8 @@ and **right-click for all options**.
 
 | Widget | Notes |
 | --- | --- |
-| YouTube Music | Shows what YouTube Music is playing — artwork, title, artist, progress — and controls it: previous, play/pause, next, jump (click the bar), volume (slider, or scroll over the controls), like. Works with YouTube Music open anywhere in Edge: a normal or pinned tab, or a website window on a board. Right-click: go to the player, open YouTube Music in a pinned tab, pick a player when several are open, three looks. Needs the installed extension. |
+| YouTube Music | Shows what YouTube Music is playing — artwork, title, artist, progress — and controls it: previous, play/pause, next, jump (click the bar), volume (slider, or scroll over the controls), like. Works with YouTube Music open anywhere in Edge: a normal or pinned tab, or a website window on a board. Right-click: go to the player, open YouTube Music in a pinned tab, pick a player when several are open, eight looks (glass panel, liquid glass tinted by the cover, artwork behind, ambient glow, a vinyl record that spins while playing, framed cover, compact pill, no panel). Needs the installed extension. |
+| Picture frame | Gilded, gallery black, wood, polaroid, thin white or no frame, with or without a white mount. Shows **the cover of what plays** (it changes with the song; double-click to pause or play), your own picture, or the cover and your picture when nothing plays. |
 | Sound visualiser | Moves by itself with whatever plays in Edge — a tab, a pinned tab, or a website window on a board — with no sharing dialog and no sharing bar (`tap.js` listens inside the page that plays and sends only the levels). If a tab started playing on its own, the widget may ask you to click once in that tab first. Click the widget to pause it. Right-click → "Listen to" can switch to a microphone-type input. The bars keep their size and spacing at any width; four shapes, four colourings. |
 | Clock | 8 looks (right-click → Change clock), seconds, date, 24-hour |
 | 8-ball pool | You vs the computer or 2 players. Aim with the mouse, hold and pull back for power, scroll for top/back spin. "Choose a cue" opens a cue rack; "Change table" lists the tables. Grab the wooden rail to move it. |
@@ -262,6 +263,16 @@ and **right-click for all options**.
 | Minesweeper | Click opens, right-click on a square flags; right-click the top line for options and sizes |
 | Sudoku | Click a square and type; N or ✎ for pencil notes; three levels |
 | Sliding puzzle | 3×3 to 5×5, numbers or your own picture |
+
+**Style** (top of Customize) — **style kits** set everything at once so it matches: colours,
+material, backdrop, font, roundness, and the looks of the YouTube Music widgets and picture frames
+on every board (Liquid glass, Gallery, Neon nights, Warm sunset, Deep ocean, Vinyl lounge, Calm
+dawn, Mono minimal). **Shuffle** makes up a fresh combination that still goes together; Undo is
+offered each time. **Material** alone: Solid, Frosted glass, **Liquid glass** (deep blur, light edges
+and highlights), Paper, Neon outline — cards, bars and menus together. **Backdrop**: soft colour
+fields behind everything (Aurora, Sunset, Ocean, Forest, Rose, Night city, Studio light, Dawn) for
+glass to show through. **Colours follow the music**: the accent takes the colour of the cover
+of what plays. Saved looks keep all of these.
 
 **Customize** (top right) — themes (Graphite, Midnight, Neon, Acrylic, Cork,
 Paper), every colour, opacity, roundness, font, background image, search
@@ -328,6 +339,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
 | `dev/webzoomtest.js` | Checks zooming a website window from inside the site, and coming back to the same page and scroll position |
+| `dev/styletest.js` | Checks style kits (widgets on every board too), Undo, Shuffle, materials, the picture frame and cover colours; screenshots each kit |
 | `dev/maptest.js` | Checks the view map: laying out, dragging tiles, Ctrl+arrows by direction |
 | `dev/keystest.js` | Checks Ctrl+arrows through views and the list, and Tab + arrows through the board tree |
 | `dev/mediatest.js` | Checks Now playing, playing on across boards, pausing a board window and another Edge tab, and finding media |

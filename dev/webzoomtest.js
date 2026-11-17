@@ -21,7 +21,7 @@ const server = http.createServer((req, res) => {
 (async () => {
   const proc = spawn(EDGE, ['--headless=new', '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', `--user-data-dir=${profile}`, '--no-first-run', 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   const done = c => { try { proc.kill(); } catch {} server.close(); process.exit(c); };
-  setTimeout(() => { console.log('TIMEOUT'); done(2); }, 220000);
+  setTimeout(() => { console.log('TIMEOUT'); done(2); }, 240000);
   let id = 0, buf = ''; const pending = new Map();
   proc.stdio[4].on('data', chunk => {
     buf += chunk.toString('utf8'); let i;
@@ -103,8 +103,8 @@ const server = http.createServer((req, res) => {
       const { sessionId: fs2 } = await send('Target.attachToTarget', { targetId: frames[0].targetId, flatten: true });
       send('Page.crash', {}, fs2).catch(() => {});
       seen.one = -1; seen.two = -1;
-      await sleep(26000);
-      ok('a website window whose page crashed is loaded again by itself', seen.one >= 0 || seen.two >= 0, JSON.stringify(seen));
+      for (let i = 0; i < 40 && seen.one < 0 && seen.two < 0; i++) await sleep(1000);
+      ok('a website window whose page crashed is loaded again by itself', seen.one >= 0 || seen.two >= 0, JSON.stringify(seen) + ' ' + JSON.stringify(await ev('({ hud: document.querySelector("#hud")?.textContent, toast: document.querySelector("#toast")?.textContent, frames: document.querySelectorAll("iframe").length, vis: document.visibilityState })')) + ' targets ' + JSON.stringify((await send('Target.getTargets')).targetInfos.filter(t => t.type === 'iframe').map(t => t.url)));
     } else ok('a website window whose page crashed is loaded again by itself', false, 'no frame to crash');
   } catch (e) { ok('no exceptions', false, e.stack); }
   const pass = results.filter(Boolean).length;

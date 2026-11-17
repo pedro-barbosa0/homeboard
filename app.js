@@ -177,6 +177,7 @@ const DEFAULT_SETTINGS = {
   pattern: 'dots', bgImage: '',
   cardAlpha: 100, chromeAlpha: 86, radius: 12, fontSize: 14, font: 'system', snap: false,
   engine: 'bing', clock: true, hour12: false, unblock: true, dockHide: true,
+  material: 'solid', scene: 'none', musicAccent: false,
 };
 
 const TYPES = {
@@ -544,11 +545,40 @@ function inkFor(hex) {
 }
 
 /* Looks: a saved appearance. The general one lives in state.settings; a board may wear a saved one instead. */
-const LOOK_KEYS = ['theme', 'accent', 'bg', 'surface', 'raise', 'text', 'pattern', 'bgImage', 'cardAlpha', 'chromeAlpha', 'radius', 'fontSize', 'font'];
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'surface', 'raise', 'text', 'pattern', 'bgImage', 'cardAlpha', 'chromeAlpha', 'radius', 'fontSize', 'font', 'material', 'scene', 'musicAccent'];
+/* What cards, bars and menus are made of. */
+const MATERIALS = { solid: 'Solid', frosted: 'Frosted glass', liquid: 'Liquid glass', paper: 'Paper', outline: 'Neon outline' };
+/* Soft colour fields behind everything (glass needs something to show through). */
+const SCENES = {
+  none: ['None', null],
+  aurora: ['Aurora', 'radial-gradient(55% 45% at 18% 22%, rgba(31,209,164,.5), transparent 70%), radial-gradient(50% 55% at 82% 28%, rgba(122,92,255,.55), transparent 70%), radial-gradient(65% 55% at 50% 108%, rgba(14,107,255,.45), transparent 70%)'],
+  sunset: ['Sunset', 'radial-gradient(60% 50% at 18% 88%, rgba(255,112,80,.55), transparent 70%), radial-gradient(55% 50% at 84% 78%, rgba(255,184,107,.45), transparent 70%), radial-gradient(70% 60% at 50% -5%, rgba(132,63,224,.5), transparent 70%)'],
+  ocean: ['Ocean', 'radial-gradient(60% 55% at 15% 15%, rgba(0,180,216,.45), transparent 70%), radial-gradient(60% 60% at 85% 85%, rgba(3,4,94,.7), transparent 70%), radial-gradient(50% 45% at 70% 25%, rgba(72,202,228,.35), transparent 70%)'],
+  forest: ['Forest', 'radial-gradient(55% 50% at 20% 80%, rgba(56,142,60,.45), transparent 70%), radial-gradient(55% 55% at 80% 20%, rgba(174,213,129,.3), transparent 70%), radial-gradient(60% 60% at 60% 60%, rgba(27,94,32,.4), transparent 70%)'],
+  rose: ['Rose', 'radial-gradient(55% 50% at 20% 25%, rgba(255,120,170,.45), transparent 70%), radial-gradient(55% 55% at 80% 75%, rgba(255,190,150,.45), transparent 70%), radial-gradient(50% 50% at 75% 15%, rgba(190,120,255,.35), transparent 70%)'],
+  city: ['Night city', 'radial-gradient(60% 45% at 15% 100%, rgba(255,43,214,.45), transparent 70%), radial-gradient(55% 45% at 90% 0%, rgba(0,240,255,.35), transparent 70%), radial-gradient(40% 35% at 55% 55%, rgba(80,40,255,.25), transparent 70%)'],
+  studio: ['Studio light', 'radial-gradient(45% 55% at 50% -5%, rgba(255,222,170,.4), transparent 70%), radial-gradient(70% 50% at 50% 115%, rgba(0,0,0,.35), transparent 70%)'],
+  dawn: ['Dawn', 'radial-gradient(55% 50% at 20% 20%, rgba(255,200,170,.6), transparent 70%), radial-gradient(55% 55% at 85% 30%, rgba(170,200,255,.6), transparent 70%), radial-gradient(60% 50% at 50% 110%, rgba(200,170,255,.5), transparent 70%)'],
+};
+/* Style kits: everything chosen to go together, widgets included. */
+const KITS = [
+  { id: 'liquid', name: 'Liquid glass', theme: 'midnight', material: 'liquid', scene: 'aurora', accent: '#8fd3ff', radius: 20, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'liquid', frame: 'white' },
+  { id: 'gallery', name: 'Gallery', theme: 'paper', material: 'paper', scene: 'studio', accent: '#b8891f', radius: 4, font: 'serif', pattern: 'none', cardAlpha: 100, ytm: 'frame', frame: 'gilded' },
+  { id: 'neon', name: 'Neon nights', theme: 'neon', material: 'outline', scene: 'city', accent: '#00f0ff', radius: 14, font: 'mono', pattern: 'grid', cardAlpha: 100, ytm: 'ambient', frame: 'gallery' },
+  { id: 'sunset', name: 'Warm sunset', theme: 'graphite', material: 'frosted', scene: 'sunset', accent: '#ffb36b', radius: 16, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'art', frame: 'wood' },
+  { id: 'ocean', name: 'Deep ocean', theme: 'midnight', material: 'frosted', scene: 'ocean', accent: '#48cae4', radius: 18, font: 'system', pattern: 'dots', cardAlpha: 100, ytm: 'glass', frame: 'polaroid' },
+  { id: 'lounge', name: 'Vinyl lounge', theme: 'graphite', material: 'paper', scene: 'studio', accent: '#e07a5f', radius: 12, font: 'serif', pattern: 'none', cardAlpha: 100, ytm: 'vinyl', frame: 'wood' },
+  { id: 'calm', name: 'Calm dawn', theme: 'paper', material: 'liquid', scene: 'dawn', accent: '#6c63ff', radius: 22, font: 'system', pattern: 'none', cardAlpha: 100, ytm: 'pill', frame: 'none' },
+  { id: 'mono', name: 'Mono minimal', theme: 'graphite', material: 'solid', scene: 'none', accent: '#e7e9ee', radius: 8, font: 'system', pattern: 'dots', cardAlpha: 100, ytm: 'minimal', frame: 'white' },
+];
+let musicTint = null;                                  // the vivid colour of the cover that plays (for "colours follow the music")
 const pickLook = src => Object.fromEntries(LOOK_KEYS.map(k => [k, src[k]]));
 function cleanLook(o) {
   const out = pickLook({ ...DEFAULT_SETTINGS, ...(o && typeof o === 'object' ? o : {}) });
   if (!THEMES[out.theme]) out.theme = 'graphite';
+  if (!MATERIALS[out.material]) out.material = 'solid';
+  if (!SCENES[out.scene]) out.scene = 'none';
+  out.musicAccent = !!out.musicAccent;
   if (typeof out.bgImage !== 'string') out.bgImage = '';
   for (const k of COLOR_KEYS) if (!/^#[0-9a-f]{6}$/i.test(out[k] || '')) out[k] = null;
   return out;
@@ -593,10 +623,68 @@ function renderLooks() {
   }));
 }
 
+/* ---- Style: kits, Shuffle, material, backdrop, colours from the music ---- */
+function restyleWidgets(kit) {                          // the widgets on every board follow the kit
+  const before = new Map();
+  for (const b of state.boards) for (const c of b.cards) {
+    if (c.type !== 'widget' || !(c.widget === 'ytm' || c.widget === 'frame')) continue;
+    before.set(c, structuredClone(c.data || {}));
+    c.data = { ...(c.data || {}), ...(c.widget === 'ytm' ? { look: kit.ytm } : { style: kit.frame }) };
+  }
+  return before;
+}
+function applyKit(kit, label) {
+  const target = lookTarget(), was = structuredClone(target);
+  const fields = { theme: kit.theme, material: kit.material, scene: kit.scene, radius: kit.radius, font: kit.font, pattern: kit.pattern, cardAlpha: kit.cardAlpha, chromeAlpha: 86, bgImage: '' };
+  Object.assign(target, fields);
+  for (const k of COLOR_KEYS) target[k] = null;
+  target.accent = kit.accent;
+  const widgets = restyleWidgets(kit);
+  applySettings(); syncSettingsUI(); renderBoard(); save();
+  toast(`${label || `“${kit.name}”`} — everything matches now.`, 'Undo', () => {
+    Object.keys(target).forEach(k => delete target[k]); Object.assign(target, was);
+    for (const [c, d] of widgets) c.data = d;
+    applySettings(); syncSettingsUI(); renderBoard(); save();
+  });
+}
+function shuffleStyle() {                              // something fresh that still goes together
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const light = Math.random() < .25;
+  const hue = Math.floor(Math.random() * 360);
+  const hsl = (hh, ss, ll) => { ss /= 100; ll /= 100; const f = n => { const k = (n + hh / 30) % 12, a = ss * Math.min(ll, 1 - ll); return Math.round(255 * (ll - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0'); }; return '#' + f(0) + f(8) + f(4); };
+  applyKit({
+    name: 'Shuffled', theme: light ? pick(['paper', 'cork']) : pick(['graphite', 'midnight', 'neon']), material: pick(Object.keys(MATERIALS)),
+    scene: pick(light ? ['dawn', 'studio', 'rose', 'none'] : ['aurora', 'sunset', 'ocean', 'forest', 'rose', 'city', 'studio']),
+    accent: hsl(hue, 85, light ? 52 : 66), radius: pick([6, 10, 14, 18, 22]), font: pick(['system', 'system', 'serif', 'mono']),
+    pattern: pick(['none', 'none', 'dots', 'grid']), cardAlpha: 100,
+    ytm: pick(['glass', 'liquid', 'art', 'ambient', 'vinyl', 'frame', 'pill']), frame: pick(['gilded', 'gallery', 'wood', 'polaroid', 'white', 'none']),
+  }, 'Shuffled');
+}
+function renderStyle() {
+  let sec = $('#style-sec');
+  if (!sec) {
+    sec = h('section', { id: 'style-sec' });
+    panel.querySelector('.set-body').prepend(sec);
+  }
+  const sh = shown();
+  const chip = (on, label, title, fn, swatch) => h('button', { class: 'style-chip' + (on ? ' on' : ''), type: 'button', title, onclick: fn }, swatch, label);
+  const kitSwatch = k => { const t = THEMES[k.theme], sw = h('i', { class: 'kit-swatch' }); sw.style.background = (SCENES[k.scene]?.[1] ? SCENES[k.scene][1] + ', ' : '') + t.bg; sw.style.setProperty('--a', k.accent); sw.style.setProperty('--s', t.surface); sw.dataset.material = k.material; return sw; };
+  sec.replaceChildren(
+    h('h3', null, 'Style'),
+    h('p', { class: 'note' }, 'A style kit sets colours, material, backdrop, font and roundness together — and the looks of the YouTube Music widgets and picture frames on every board. Shuffle makes up a new one that still goes together.'),
+    h('div', { class: 'kit-grid' }, KITS.map(k => h('button', { class: 'kit', type: 'button', title: `${k.name}: ${MATERIALS[k.material]}, ${SCENES[k.scene][0]}`, onclick: () => applyKit(k) }, kitSwatch(k), h('span', null, k.name))),
+      h('button', { class: 'kit kit-shuffle', type: 'button', title: 'A fresh combination that goes together', onclick: shuffleStyle }, h('i', { class: 'kit-swatch shuffle' }, '⤮'), h('span', null, 'Shuffle'))),
+    h('div', { class: 'style-label' }, 'Material'),
+    h('div', { class: 'style-row' }, Object.entries(MATERIALS).map(([k, name]) => chip(sh.material === k, name, 'Cards, bars and menus made of ' + name.toLowerCase(), () => { lookTarget().material = k; applySettings(); syncSettingsUI(); save(); }))),
+    h('div', { class: 'style-label' }, 'Backdrop'),
+    h('div', { class: 'style-row' }, Object.entries(SCENES).map(([k, [name, css]]) => { const sw = h('i', { class: 'scene-dot' }); sw.style.background = (css ? css + ', ' : '') + 'var(--bg)'; return chip(sh.scene === k, name, name + (sh.bgImage ? ' (your background picture covers it; Remove it to see this)' : ''), () => { lookTarget().scene = k; applySettings(); syncSettingsUI(); save(); }, sw); })),
+    h('label', { class: 'row' }, 'Colours follow the music (the cover of what plays)', h('input', { type: 'checkbox', checked: !!sh.musicAccent, onchange(e) { lookTarget().musicAccent = e.target.checked; applySettings(); save(); } })));
+}
+
 function applySettings() {
   const s = shown(), t = THEMES[s.theme] || THEMES.graphite;
   const root = document.documentElement.style;
-  const accent = s.accent || t.accent;
+  const accent = (s.musicAccent && musicTint) || s.accent || t.accent;
   const vars = {
     bg: s.bg || t.bg, surface: s.surface || t.surface, raise: s.raise || t.raise, text: s.text || t.text,
     muted: s.text ? `color-mix(in srgb, ${s.text} 60%, transparent)` : t.muted, border: t.border,
@@ -604,7 +692,7 @@ function applySettings() {
     accent, 'accent-ink': inkFor(accent), dot: t.dot, 'tint-mix': t.tintMix, shadow: t.shadow, texture: t.texture,
     string: t.string,
     'bg-image': s.bgImage ? `url("${s.bgImage.replace(/["\\\n\r]/g, ch => encodeURIComponent(ch))}")`
-              : t.image ? `url("${t.image}")` : 'none',
+              : SCENES[s.scene]?.[1] || (t.image ? `url("${t.image}")` : 'none'),
     'bg-fallback': t.fallback || 'none',
     radius: clamp(+s.radius || 0, 0, 24) + 'px',
     'card-alpha': clamp(+s.cardAlpha || 100, 40, 100) + '%',
@@ -616,6 +704,7 @@ function applySettings() {
   document.body.dataset.pattern = s.pattern;
   document.body.dataset.theme = THEMES[s.theme] ? s.theme : 'graphite';
   document.body.classList.toggle('glass', s.cardAlpha < 100);
+  document.body.dataset.material = MATERIALS[s.material] ? s.material : 'solid';
   document.body.classList.toggle('dock-hide', !!s.dockHide);     // the add bar stays out of sight until the mouse nears the bottom edge
   tick();
 }
@@ -630,6 +719,7 @@ function syncSettingsUI() {
     else inp.value = s[k];
   });
   panel.querySelectorAll('.theme').forEach(b => b.classList.toggle('active', b.dataset.theme === s.theme));
+  renderStyle();
   const canUnblock = !!(api && api.declarativeNetRequest);
   $('#unblock').disabled = !canUnblock;
   if (!canUnblock) $('#unblock').checked = false;
@@ -4042,6 +4132,10 @@ function wire() {
   $('#zoom-label').addEventListener('click', () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / board().view.z));
 
   setupFinder();
+  window.HomeboardMusic?.subscribe(st => {            // "colours follow the music"
+    if (!st || !st.art) { if (musicTint) { musicTint = null; applySettings(); } return; }
+    window.HomeboardMusic.palette(st.art).then(p => { const next = p && p.vivid; if (next !== musicTint) { musicTint = next; if (shown().musicAccent) applySettings(); } });
+  });
   nowPlaying.setup();
   $('#search').addEventListener('submit', e => {
     e.preventDefault();
