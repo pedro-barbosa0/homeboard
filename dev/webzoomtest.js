@@ -21,7 +21,7 @@ const server = http.createServer((req, res) => {
 (async () => {
   const proc = spawn(EDGE, ['--headless=new', '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', `--user-data-dir=${profile}`, '--no-first-run', 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   const done = c => { try { proc.kill(); } catch {} server.close(); process.exit(c); };
-  setTimeout(() => { console.log('TIMEOUT'); done(2); }, 150000);
+  setTimeout(() => { console.log('TIMEOUT'); done(2); }, 220000);
   let id = 0, buf = ''; const pending = new Map();
   proc.stdio[4].on('data', chunk => {
     buf += chunk.toString('utf8'); let i;
@@ -95,6 +95,17 @@ const server = http.createServer((req, res) => {
     await sleep(1500);
     c = await card();
     ok('"back to this address" starts fresh', !c.last || /\/one$/.test(c.last.url), JSON.stringify(c.last));
+    // a crashed page is loaded again by itself
+    await send('Page.bringToFront', {}, sid);
+    await sleep(22000);                                    // the board watches only after being on screen a while
+    const frames = (await send('Target.getTargets')).targetInfos.filter(t => t.type === 'iframe' && /8795/.test(t.url));
+    if (frames.length) {
+      const { sessionId: fs2 } = await send('Target.attachToTarget', { targetId: frames[0].targetId, flatten: true });
+      send('Page.crash', {}, fs2).catch(() => {});
+      seen.one = -1; seen.two = -1;
+      await sleep(26000);
+      ok('a website window whose page crashed is loaded again by itself', seen.one >= 0 || seen.two >= 0, JSON.stringify(seen));
+    } else ok('a website window whose page crashed is loaded again by itself', false, 'no frame to crash');
   } catch (e) { ok('no exceptions', false, e.stack); }
   const pass = results.filter(Boolean).length;
   console.log(`\n${pass}/${results.length} passed`);

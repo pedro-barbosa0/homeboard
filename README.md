@@ -183,6 +183,21 @@ the number of places; click it to go to the others or **Make this one
 separate**. Colour, size and place stay each copy's own. (Pasting a note's text
 inside another note pastes just the text, as before.)
 
+**Now playing** — while something plays, a button by the clock shows it (its bars move). Click it for
+the list of what plays or was paused: website windows on any board, videos on the boards, and sounds in
+your other Edge tabs, each with ⏯ play / pause, 📺 **cast**, and a click to **go there**. Below it, a search
+over every piece of media on the boards (videos, pictures, PDFs, media sites such as YouTube or Spotify,
+the YouTube Music widget). Right-click the button to pause or play the top one. What plays **keeps
+playing when you open another board** (its window is only hidden, not reloaded), and the board list
+marks boards that are playing with ♪. A website window whose page crashed (Edge's grey frame with a sad
+face) is loaded again by itself, where you were.
+
+**Cast to a TV or box** — a video on a board (right-click → **Play on a TV or box…**, or 📺 in Now playing)
+goes straight to a Chromecast / Google TV-type device on your network. Sites such as YouTube, YouTube
+Music, Netflix or Spotify play best through **their own cast button** in the player (the TV then streams by
+itself); 📺 takes you there. Anything else, or a whole board: Edge's ⋯ menu → More tools → **Cast media to
+device** (browsers do not let pages start that one).
+
 **Search** — the search box at the top also finds things on Homeboard as you
 type: boards, views, cards by name, the words inside notes and to-do lists,
 links, apps and website addresses (accents do not matter). The first row stays
@@ -309,6 +324,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
 | `dev/webzoomtest.js` | Checks zooming a website window from inside the site, and coming back to the same page and scroll position |
 | `dev/keystest.js` | Checks Ctrl+arrows through views and the list, and Tab + arrows through the board tree |
+| `dev/mediatest.js` | Checks Now playing, playing on across boards, pausing a board window and another Edge tab, and finding media |
 | `dev/peektest.js` | Checks peeking at links, files dropped on the board, and the search finder |
 | `dev/taptest.js` | Checks the visualiser hearing another tab by itself, at two sizes |
 | `dev/linkstest.js` | Checks dragging boards, dropping cards on boards, links to boards / views / cards, linked notes |

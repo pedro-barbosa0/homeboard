@@ -81,6 +81,30 @@ function restore(at) {
 /* sign-in pages that refuse to work inside another page, whatever we do */
 const SIGNIN = /^(accounts\.google\.com|login\.live\.com|login\.microsoftonline\.com|appleid\.apple\.com|account\.apple\.com)$/i;
 const hello = () => send(SIGNIN.test(location.hostname) ? 'signin' : 'ok').then(r => { if (r && r.restore) restore(r.restore); });
+setInterval(() => send('alive'), 4000);
+
+/* ---- what plays here, for "Now playing" on the board (which can also pause and play it) ---- */
+const medias = () => [...document.querySelectorAll('video, audio')];
+function nowState() {
+  const list = medias().filter(x => x.readyState > 0 || x.currentTime > 0);
+  const on = list.find(x => !x.paused && !x.ended && !x.muted && x.volume > 0);
+  const any = on || list.find(x => x.currentTime > 0 && !x.muted);
+  if (!any) return null;
+  const md = navigator.mediaSession && navigator.mediaSession.metadata;
+  const art = md && md.artwork && md.artwork.length ? md.artwork[md.artwork.length - 1].src : '';
+  return { playing: !!on, title: (md && md.title) || document.title, artist: (md && md.artist) || '', art: /^https?:/i.test(art) ? art : '', video: any.tagName === 'VIDEO' };
+}
+let told = '';
+const tellMedia = () => { const st = nowState(), k = JSON.stringify(st); if (k !== told) { told = k; send('media', { media: st }); } };
+for (const ev of ['play', 'playing', 'pause', 'ended', 'emptied', 'volumechange', 'loadedmetadata']) document.addEventListener(ev, () => setTimeout(tellMedia, 60), true);
+setInterval(tellMedia, 2500);                            // the next song changes only the title
+api.runtime.onMessage.addListener(msg => {
+  if (!msg || msg.homeboard !== 'media-cmd' || msg.card !== m[1]) return;
+  const list = medias();
+  if (msg.action === 'pause' || (msg.action === 'toggle' && list.some(x => !x.paused))) list.forEach(x => x.pause());
+  else { const x = list.find(y => y.currentTime > 0) || list[0]; if (x) x.play().catch(() => {}); }
+  setTimeout(tellMedia, 200);
+});                // the board reloads a window that goes silent (a crashed page)
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hello, { once: true });
 else hello();
 })();

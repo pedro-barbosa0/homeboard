@@ -83,6 +83,20 @@ function start() {
   }, 33);
 }
 
+/* "Now playing" on the board can pause and play what plays in this tab, and asks what it is */
+api.runtime.onMessage.addListener((msg, _s, reply) => {
+  if (!msg || msg.homeboard !== 'tap-cmd') return;
+  const list = [...document.querySelectorAll('video, audio')];
+  if (!list.length) return;
+  if (msg.action === 'what') {
+    const on = list.find(x => !x.paused && !x.muted), md = navigator.mediaSession && navigator.mediaSession.metadata;
+    const art = md && md.artwork && md.artwork.length ? md.artwork[md.artwork.length - 1].src : '';
+    reply({ playing: !!on, title: (md && md.title) || document.title, artist: (md && md.artist) || '', art: /^https?:/i.test(art) ? art : '' });
+    return;
+  }
+  if (msg.action === 'pause' || (msg.action === 'toggle' && list.some(x => !x.paused))) list.forEach(x => x.pause());
+  else { const x = list.find(y => y.currentTime > 0) || list[0]; if (x) x.play().catch(() => {}); }
+});
 api.runtime.onMessage.addListener(msg => {
   if (!msg || msg.homeboard !== 'tap') return;
   if (msg.on === false) { stop(); return; }

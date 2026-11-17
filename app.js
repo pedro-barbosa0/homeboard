@@ -97,6 +97,7 @@ const ICONS = {
   layers: '<path d="M12 4 3 9l9 5 9-5z"/><path d="m3 14 9 5 9-5"/>',
   apps: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.600"/><rect x="13.500" y="4" width="6.5" height="6.5" rx="1.600"/><rect x="4" y="13.500" width="6.5" height="6.5" rx="1.600"/><rect x="13.500" y="13.500" width="6.5" height="6.5" rx="1.600"/>',
   space: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 4v13M12 10.500h9M9 21h6"/>',
+  cast: '<path d="M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><path d="M3 12a8 8 0 0 1 8 8M3 16a4 4 0 0 1 4 4"/><path d="M3 20h.01"/>',
   widget: '<rect x="4" y="4" width="16" height="16" rx="3.500"/><path d="M8.500 8.500h.01M15.500 15.500h.01M12 12h.01M15.500 8.500h.01M8.500 15.500h.01"/>',
 };
 const WIDGETS = globalThis.HomeboardWidgets || {};   // minigames and other self-contained cards, see widgets.js
@@ -1495,6 +1496,8 @@ function cardItems(c) {
       label: 'Clear completed', icon: 'check',
       action() { c.items = c.items.filter(i => !i.done); refreshCard(c); save(); },
     },
+    c.type === 'media' && c.kind === 'video' && { label: 'Play on a TV or box…', icon: 'cast', action: () => castVideo(el?.querySelector('video')) },
+    c.type === 'web' && { label: 'Play on a TV or box…', icon: 'cast', action() { let host = ''; try { host = new URL(c.last?.url || c.url).hostname; } catch { /* none */ } castSite(c.id, host); } },
     (c.type === 'media' || bare) && {
       label: c.back ? 'Bring in front of cards' : 'Keep behind other cards', icon: 'layers',
       action() { c.back = !c.back; place(el, c); save(); },
@@ -3286,7 +3289,17 @@ function renderBoard() {
   b.cards.sort((a, c) => a.z - c.z).forEach((c, i) => { c.z = i + 1; });
   maxZ = b.cards.length;
   selected = null;
-  world.replaceChildren(...b.cards.map(buildCard), stringsEl);
+  // what is playing stays: its card is only hidden while another board is open (moving or rebuilding it would stop it)
+  const keep = new Map();
+  for (const el of world.querySelectorAll(':scope > .card')) if (isPlayingEl(el) && findCard(el.dataset.id)) keep.set(el.dataset.id, el);
+  for (const n of [...world.children]) if (n !== stringsEl && !keep.has(n.dataset?.id)) n.remove();
+  if (stringsEl.parentNode !== world) world.append(stringsEl);
+  for (const c of b.cards) {
+    const el = keep.get(c.id);
+    if (el) { el.classList.remove('away'); place(el, c); keep.delete(c.id); }
+    else stringsEl.before(buildCard(c));
+  }
+  for (const el of keep.values()) { el.classList.add('away'); el.classList.remove('selected'); }
   drawStrings();
   applyView();
 
@@ -3304,6 +3317,41 @@ function renderBoard() {
   sideEl.hidden = !b.side;
   if (b.side && sideText.innerHTML !== (b.sideHtml || '')) sideText.innerHTML = b.sideHtml || '';
 }
+
+/* ---- media: what plays, wherever it is ---- */
+const mediaState = new Map();                          // website window card id -> { playing, title, artist, art, video, at }
+const MEDIA_HOSTS = /(^|\.)(youtube\.com|youtu\.be|spotify\.com|soundcloud\.com|twitch\.tv|netflix\.com|vimeo\.com|deezer\.com|tidal\.com|music\.apple\.com|primevideo\.com|disneyplus\.com|dailymotion\.com|mixcloud\.com|bandcamp\.com)$/i;
+/* Casting. A video of the board goes to a TV or box straight from here (the browser lists the devices);
+   a site plays best through its own cast button (the TV then streams by itself); anything else, or a whole board,
+   through Edge's menu. Browsers let a page start only the first of these. */
+const CAST_EDGE = 'For anything else, or a whole board: Edge’s ⋯ menu → More tools → Cast media to device.';
+function castVideo(v) {
+  if (!v || !v.remote || !v.remote.prompt) { toast('This browser cannot send videos to a TV from a page. ' + CAST_EDGE); return; }
+  v.muted = false;
+  v.remote.prompt().then(() => hud('Sent to the TV'), e => toast(e && e.name === 'NotFoundError' ? 'No TV or box was found. It has to be on and on the same network (Chromecast / Google TV and similar). ' + CAST_EDGE : 'Not cast. ' + CAST_EDGE));
+}
+function castSite(cardId, host) {
+  const own = /youtube|spotify|netflix|twitch|primevideo|disneyplus|deezer|tidal/i.test(host || '');
+  toast(own ? 'Press the cast button inside the player (the screen with waves): the TV then plays it by itself, and this computer can rest. ' + CAST_EDGE : 'This site has no cast button of its own: use Edge’s ⋯ menu → More tools → Cast media to device.', null, null);
+  if (cardId) { const el = cardEl(cardId); el?.querySelector('.web-shield')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }
+}
+
+function setMedia(id, m) {
+  const was = mediaState.get(id)?.playing;
+  if (m && typeof m === 'object') mediaState.set(id, { playing: !!m.playing, title: String(m.title || '').slice(0, 200), artist: String(m.artist || '').slice(0, 200), art: /^https?:/i.test(m.art || '') ? m.art : '', video: !!m.video, at: Date.now() });
+  else mediaState.delete(id);
+  if (was !== mediaState.get(id)?.playing) { renderTabs(); nowPlaying.update(); }
+  else nowPlaying.update(true);
+}
+function isPlayingEl(el) {                            // a card that is making sound now (or paused a moment ago)
+  if (!el.classList.contains('card')) return false;
+  const st = mediaState.get(el.dataset.id);
+  if (st && (st.playing || Date.now() - st.at < 600000) && el.querySelector('.web-frame iframe')) return true;
+  return [...el.querySelectorAll('video')].some(v => !v.muted && (!v.paused || v.currentTime > 0) && !v.classList.contains('web-live'));
+}
+setInterval(() => {                                   // hidden cards of other boards that stopped long ago are let go
+  for (const el of world.querySelectorAll(':scope > .card.away')) if (!isPlayingEl(el) || !findCard(el.dataset.id)) el.remove();
+}, 30000);
 
 function openBoard(b) {
   if (b.id === state.active) return;
@@ -3327,6 +3375,7 @@ function renderTabs() {
         h('span', { class: 'tab-fold' + (b.collapsed ? '' : ' open'), title: kids ? 'Show or hide the boards inside' : null,
           onclick(e) { if (!kids) return; e.stopPropagation(); b.collapsed = !b.collapsed; renderTabs(); save(); } }, kids && icon('chev')),
         chip, name,
+        b.cards.some(c => mediaState.get(c.id)?.playing || cardEl(c.id)?.querySelector('video:not([muted]):not(.web-live)')?.paused === false) && h('span', { class: 'tab-playing', title: 'Something is playing on this board' }, '♪'),
         b.kind === 'file' && h('span', { class: 'tab-kind', title: 'Shows a page instead of cards' }, icon('file')),
         h('span', { class: 'tab-plus', title: 'New board inside', onclick(e) { e.stopPropagation(); addBoard(b.id); } }, icon('plus')));
       t.style.setProperty('--depth', depth);
@@ -3474,6 +3523,141 @@ function treeStep(b, key) {
 
 tabsEl.addEventListener('focusout', e => { if (!tabsEl.contains(e.relatedTarget)) tabsEl.classList.remove('keys'); });
 
+/* ---- Now playing: a button by the clock while something plays; its panel lists what plays on any board and in
+   other Edge tabs (play / pause, Go there) and finds every piece of media on the boards. ---- */
+const nowPlaying = (() => {
+  let btn = null, panel = null, search = null, list = null, timer = 0, tabs = [], pausedTabs = new Map();
+  const ICON_NOTE = '♪';
+  const fmtWhere = (b, c) => `${b.name} › ${c.title}`;
+  function sources() {                                  // things that play or were paused: board windows, board videos, Edge tabs
+    const out = [];
+    for (const [id, st] of mediaState) {
+      const f = findCard(id);
+      if (!f) continue;
+      const [b, c] = f;
+      let host = ''; try { host = new URL(c.last?.url || c.url).hostname; } catch { /* none */ }
+      out.push({ key: 'w' + id, title: st.title || c.title, sub: [st.artist, fmtWhere(b, c)].filter(Boolean).join(' · '), art: st.art, playing: st.playing, at: st.at,
+        cast: () => { close(); followBoardLink(`homeboard:board/${b.id}/card/${id}`); castSite(id, host); },
+        toggle: () => api?.tabs?.sendMessage(tabId, { homeboard: 'media-cmd', card: id, action: 'toggle' }).catch(() => {}),
+        go: () => followBoardLink(`homeboard:board/${b.id}/card/${id}`) });
+    }
+    for (const v of world.querySelectorAll('.card video:not(.web-live)')) {
+      if (v.muted || (v.paused && !v.currentTime)) continue;
+      const id = v.closest('.card').dataset.id, f = findCard(id);
+      if (!f) continue;
+      const [b, c] = f;
+      out.push({ key: 'v' + id, title: c.title, sub: (v.remote && v.remote.state === 'connected' ? 'On the TV · ' : '') + fmtWhere(b, c), playing: !v.paused, at: Date.now(), icon: 'play',
+        cast: () => castVideo(v),
+        toggle: () => (v.paused ? v.play().catch(() => {}) : v.pause()), go: () => followBoardLink(`homeboard:board/${b.id}/card/${id}`) });
+    }
+    for (const t of tabs) out.push({ key: 't' + t.id, title: t.title, sub: 'Edge tab' + (t.host ? ' · ' + t.host : ''), art: t.art, fav: t.fav, playing: t.playing, at: t.at,
+      cast: () => { close(); castSite(null, t.host); setTimeout(() => api.tabs.update(t.id, { active: true }).then(tab => api.windows.update(tab.windowId, { focused: true })).catch(() => {}), 2500); },
+      toggle: async () => { const was = t.playing; await api.tabs.sendMessage(t.id, { homeboard: 'tap-cmd', action: 'toggle' }).catch(() => {}); if (was) pausedTabs.set(t.id, { ...t, playing: false, at: Date.now() }); else pausedTabs.delete(t.id); setTimeout(refreshTabs, 300); },
+      go: async () => { try { const tab = await api.tabs.update(t.id, { active: true }); await api.windows.update(tab.windowId, { focused: true }); } catch { /* closed */ } } });
+    return out.sort((a, b) => (b.playing - a.playing) || (b.at - a.at));
+  }
+  async function refreshTabs() {                       // other Edge tabs making sound (and the ones paused from here)
+    if (!api?.tabs?.query) return;
+    try {
+      const found = await api.tabs.query({ audible: true });
+      const next = [];
+      for (const t of found) {
+        if (t.id === tabId) continue;
+        let info = null;
+        try { info = await api.tabs.sendMessage(t.id, { homeboard: 'tap-cmd', action: 'what' }); } catch { /* no script there */ }
+        let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch { /* none */ }
+        next.push({ id: t.id, title: (info && info.title) || t.title || host, host, art: info && info.art, fav: t.favIconUrl, playing: true, at: Date.now() });
+        pausedTabs.delete(t.id);
+      }
+      for (const [id, p] of pausedTabs) { if (Date.now() - p.at > 1800000) pausedTabs.delete(id); else if (!next.some(x => x.id === id)) next.push(p); }
+      const changed = JSON.stringify(next.map(x => [x.id, x.playing, x.title])) !== JSON.stringify(tabs.map(x => [x.id, x.playing, x.title]));
+      tabs = next;
+      if (changed) update();
+    } catch { /* tabs unavailable */ }
+  }
+  function library(q) {                                 // every piece of media on the boards, for the search
+    const out = [], f = fold(q);
+    for (const b of state.boards) for (const c of b.cards) {
+      let host = '';
+      if (c.type === 'web') { try { host = new URL(c.last?.url || c.url).hostname; } catch { /* none */ } }
+      const isMedia = c.type === 'media' || (c.type === 'web' && MEDIA_HOSTS.test(host)) || (c.type === 'widget' && /^(ytmusic|viz)$/.test(c.widget));
+      if (!isMedia) continue;
+      const kind = c.type === 'media' ? ({ image: 'Picture', video: 'Video', pdf: 'PDF' }[c.kind] || 'Media') : c.type === 'web' ? host.replace(/^www\./, '') : c.widget === 'ytmusic' ? 'YouTube Music controls' : 'Sound visualiser';
+      const text = fold(`${c.title} ${kind} ${b.name} ${c.url || ''} ${c.last?.url || ''}`);
+      if (f && !f.split(/\s+/).every(w => text.includes(w))) continue;
+      out.push({ key: 'l' + c.id, title: c.title, sub: `${kind} · ${b.name}`, icon: c.type === 'media' ? (c.kind === 'video' ? 'play' : c.kind === 'pdf' ? 'file' : 'media') : c.type === 'web' ? 'web' : 'widget', go: () => followBoardLink(`homeboard:board/${b.id}/card/${c.id}`) });
+    }
+    return out.slice(0, 60);
+  }
+  function row(it, controls) {
+    const pic = it.art ? h('img', { src: it.art, alt: '', referrerpolicy: 'no-referrer' }) : it.fav ? h('img', { src: it.fav, alt: '', class: 'fav' }) : icon(it.icon || 'volume');
+    const r = h('div', { class: 'np-row' + (it.playing ? ' on' : ''), role: 'button', tabindex: '0', title: 'Go there', onclick: () => { close(); it.go(); } },
+      h('span', { class: 'np-art' }, pic),
+      h('div', { class: 'np-text' }, h('div', { class: 'np-title' }, it.title || 'Untitled'), h('div', { class: 'np-sub' }, it.sub || '')),
+      controls && it.cast && h('button', { class: 'icon-btn np-cast', type: 'button', title: 'Play it on a TV or box', 'aria-label': 'Cast to a TV',
+        onclick(e) { e.stopPropagation(); it.cast(); } }, icon('cast')),
+      controls && h('button', { class: 'icon-btn np-toggle', type: 'button', title: it.playing ? 'Pause' : 'Play', 'aria-label': it.playing ? 'Pause' : 'Play',
+        onclick(e) { e.stopPropagation(); it.toggle(); setTimeout(update, 350); } }, icon(it.playing ? 'pause' : 'play')));
+    r.addEventListener('keydown', e => { if (e.key === 'Enter') r.click(); });
+    return r;
+  }
+  function drawPanel() {
+    if (!panel || panel.hidden) return;
+    const q = search.value.trim(), f = fold(q);
+    const src = sources().filter(it => !f || fold(`${it.title} ${it.sub}`).includes(f));
+    const lib = library(q);
+    list.replaceChildren(
+      h('div', { class: 'np-head' }, src.length ? 'Playing and paused' : 'Nothing is playing'),
+      ...src.map(it => row(it, true)),
+      h('div', { class: 'np-head' }, q ? `Media on your boards matching “${q}”` : 'Media on your boards'),
+      ...(lib.length ? lib.map(it => row(it, false)) : [h('div', { class: 'np-none' }, q ? 'Nothing matches.' : 'No videos, pictures, PDFs or media sites on the boards yet.')]));
+  }
+  function update(light) {
+    if (!btn) return;
+    const src = sources(), top = src[0];
+    const any = src.some(x => x.playing);
+    btn.hidden = !src.length;
+    btn.classList.toggle('on', any);
+    btn.querySelector('.np-btn-title').textContent = top ? top.title : '';
+    btn.title = top ? `${any ? 'Playing' : 'Paused'}: ${top.title}${top.sub ? ' — ' + top.sub : ''}` : '';
+    if (!light || (panel && !panel.hidden)) drawPanel();
+  }
+  function open() {
+    if (!panel) {
+      search = h('input', { class: 'field', type: 'search', placeholder: 'Find media on your boards', 'aria-label': 'Find media on your boards', spellcheck: 'false' });
+      search.addEventListener('input', drawPanel);
+      list = h('div', { class: 'np-list' });
+      panel = h('div', { id: 'np-panel', role: 'dialog', 'aria-label': 'Now playing' }, search, list);
+      panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+      document.body.append(panel);
+      document.addEventListener('pointerdown', e => { if (panel && !panel.hidden && !panel.contains(e.target) && !btn.contains(e.target)) close(); }, true);
+    }
+    panel.hidden = false;
+    search.value = '';
+    refreshTabs();
+    drawPanel();
+    search.focus();
+    clearInterval(timer);
+    timer = setInterval(() => { if (panel.hidden) { clearInterval(timer); return; } refreshTabs(); update(); }, 1500);
+  }
+  function close() { if (panel) panel.hidden = true; clearInterval(timer); }
+  function setup() {
+    btn = h('button', { id: 'now-playing', class: 'pill', type: 'button', hidden: true, 'aria-label': 'Now playing' },
+      h('span', { class: 'np-eq', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
+      h('span', { class: 'np-btn-title' }));
+    btn.addEventListener('click', () => (panel && !panel.hidden ? close() : open()));
+    btn.addEventListener('contextmenu', e => {        // right-click: pause or play the one on top, without opening anything
+      e.preventDefault();
+      const top = sources()[0];
+      if (top) { top.toggle(); setTimeout(update, 400); }
+    });
+    $('#right').prepend(btn);
+    setInterval(() => { refreshTabs(); update(true); }, 4000);
+    refreshTabs();
+  }
+  return { setup, update, open, close };
+})();
+
 function boardMenu(b, x, y) {
   const again = () => { renderTabs(); renderBoard(); save(); };
   const sibs = kidsOf(b.parent), at = sibs.indexOf(b);
@@ -3619,6 +3803,27 @@ async function setupUnblock() {
     console.warn('Homeboard: embed unblocking unavailable', err);
   }
 }
+/* A website window whose page crashed (Edge shows a grey frame with a sad face) goes silent: frame.js inside
+   it says "alive" every few seconds. One silent for 15 s while the board is on screen is loaded again, back where
+   you were; three times in ten minutes and it stops trying and says so. */
+const alive = new Map(), healed = new Map();
+let shownSince = Date.now();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { shownSince = Date.now(); alive.clear(); } });
+setInterval(() => {
+  if (document.hidden || !api?.runtime?.id || Date.now() - shownSince < 20000) return;
+  for (const c of board().cards) {
+    if (c.type !== 'web' || !alive.has(c.id) || Date.now() - alive.get(c.id) < 15000) continue;
+    const el = cardEl(c.id), frame = el?.querySelector('.web-frame iframe');
+    alive.delete(c.id);
+    if (!frame) continue;
+    const times = (healed.get(c.id) || []).filter(t => Date.now() - t < 600000);
+    if (times.length >= 3) { toast(`“${c.title}” keeps stopping. Reload it with ↻, or open it in its own window.`); continue; }
+    healed.set(c.id, [...times, Date.now()]);
+    refreshCard(c);
+    hud(`“${c.title}” stopped working and was loaded again`);
+  }
+}, 5000);
+
 function dropUnblock() {
   if (tabId == null || !api?.declarativeNetRequest) return;
   try { api.declarativeNetRequest.updateSessionRules({ removeRuleIds: [tabId] })?.catch?.(() => {}); } catch { /* closing */ }
@@ -3630,6 +3835,9 @@ function dropUnblock() {
 function wire() {
   api?.runtime?.onMessage?.addListener((msg, sender, reply) => {
     if (!msg || msg.homeboard !== 'frame' || !sender.tab || sender.tab.id !== tabId) return;
+    alive.set(msg.card, Date.now());
+    if (msg.kind === 'alive') return;
+    if (msg.kind === 'media') { setMedia(msg.card, msg.media); return; }
     const c = board().cards.find(k => k.id === msg.card && k.type === 'web');
     if (msg.kind === 'zoom') {                        // Ctrl + scroll, pinch or Ctrl + plus / minus / 0 inside the site
       if (!c) return;
@@ -3698,6 +3906,7 @@ function wire() {
   $('#zoom-label').addEventListener('click', () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / board().view.z));
 
   setupFinder();
+  nowPlaying.setup();
   $('#search').addEventListener('submit', e => {
     e.preventDefault();
     if (finderPick()) return;                           // a Homeboard result was chosen
