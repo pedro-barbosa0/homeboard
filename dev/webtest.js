@@ -55,7 +55,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     await sleep(1500);
     const wins = await ev(`chrome.windows.getAll({ populate: true }).then(ws => ws.filter(w => w.type === 'popup').map(w => ({ id: w.id, url: w.tabs[0].url || w.tabs[0].pendingUrl })))`);
     const ownAfter = await ev(`document.querySelector('[data-id="own"] .web-own .btn').textContent`);
-    ok('“always in its own window”: the card opens the site in a real window and can bring it back to the front', /Opens in its own window/.test(ownBefore) && wins.some(w => /8792\/own/.test(w.url)) && ownAfter === 'Bring it to the front', JSON.stringify(wins));
+    ok('“always in its own window”: the card opens the site in a real window and can bring it back to the front', /Opens in its own window/.test(ownBefore) && wins.some(w => /8792\/own/.test(w.url)) && ownAfter === 'Bring it over the card', JSON.stringify(wins));
     const win = wins.find(w => /8792\/own/.test(w.url));
     await ev(`chrome.windows.remove(${win.id})`);
     await sleep(800);

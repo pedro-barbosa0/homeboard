@@ -265,7 +265,7 @@ body.connecting, body.connecting * { cursor: crosshair !important; }
 .web-url { flex: 1; padding: 5px 10px; font-size: .9em; }
 .web-frame { flex: 1; min-height: 0; position: relative; background: #fff; border-top: 1px solid var(--border); }
 .web-frame.empty { background: transparent; }
-.web-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+.web-frame iframe { position: absolute; left: 0; top: 0; width: calc(100% / var(--cz, 1)); height: calc(100% / var(--cz, 1)); transform: scale(var(--cz, 1)); transform-origin: 0 0; border: 0; background: #fff; }
 .web-shield { position: absolute; inset: 0; cursor: pointer; }
 .card.selected .web-shield { display: none; }
 .web-empty {
@@ -350,7 +350,7 @@ body.connecting, body.connecting * { cursor: crosshair !important; }
 
 /* ---------- menu & toast ---------- */
 #menu {
-  position: fixed; z-index: 100; min-width: 190px; max-width: 280px; padding: 5px;
+  position: fixed; z-index: 1000; min-width: 190px; max-width: 280px; padding: 5px;
   background: var(--raise); box-shadow: 0 14px 40px rgba(0, 0, 0, .4);
 }
 .menu-item {
@@ -372,7 +372,7 @@ body.connecting, body.connecting * { cursor: crosshair !important; }
 .swatch.on { box-shadow: 0 0 0 2px var(--raise), 0 0 0 4px var(--accent); }
 
 #toast {
-  position: fixed; left: 50%; bottom: 78px; transform: translateX(-50%); z-index: 110;
+  position: fixed; left: 50%; bottom: 78px; transform: translateX(-50%); z-index: 1010;
   display: flex; align-items: center; gap: 14px; padding: 9px 14px; max-width: calc(100vw - 24px);
   background: var(--raise);
 }
@@ -564,3 +564,52 @@ body.has-side #page { right: 344px; }
 
 /* a text file shown in a website window or page board */
 .web-frame > .files-text { position: absolute; inset: 0; overflow: auto; }
+
+/* a card's own text size (see cardZoom in app.js) */
+.card[style*="--cz"] > .card-body { font-size: calc(1em * var(--cz, 1)); }
+.card-web[style*="--cz"] > .card-body { font-size: inherit; }
+
+/* moving around (see "Moving around" in app.js) */
+body.space-pan, body.space-pan * { cursor: grab !important; }
+body.space-pan.panning, body.space-pan.panning * { cursor: grabbing !important; }
+body.space-pan .card iframe, body.wheel-pan .card iframe, body.panning .card iframe { pointer-events: none; }
+body.panning #world, body.wheel-pan #world { will-change: transform; }
+.card-body, .card-body * { overscroll-behavior: contain; }
+
+/* an expanded card (see expandCard in app.js) */
+#focus-layer {
+  position: fixed; inset: 0; z-index: 900; background: rgb(0 0 0 / 0); backdrop-filter: blur(0);
+  transition: background .2s ease, backdrop-filter .2s ease;
+}
+#focus-layer.open { background: rgb(0 0 0 / .45); backdrop-filter: blur(6px); }
+#focus-layer > .card.expanded {
+  position: absolute; left: 50% !important; top: 50% !important; z-index: 1 !important;
+  width: min(1100px, calc(100vw - 64px)) !important; height: calc(100vh - 72px) !important;
+  transform: translate(-50%, -50%) scale(.96); opacity: 0; transition: transform .2s cubic-bezier(.2, .8, .2, 1), opacity .16s ease;
+  box-shadow: 0 30px 80px rgb(0 0 0 / .5);
+}
+#focus-layer.open > .card.expanded { transform: translate(-50%, -50%); opacity: 1; }
+#focus-layer > .card.expanded .card-resize, #focus-layer > .card.expanded .card-pin { display: none; }
+#focus-layer > .card.expanded .card-head { cursor: default; }
+.card-expand { opacity: 0; transition: opacity .12s; }
+.card:hover .card-expand, .card.selected .card-expand, .card.expanded .card-expand { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #focus-layer, #focus-layer > .card.expanded { transition: none; } }
+
+/* dragging boards in the tree */
+.tab-dragging .tab { cursor: grabbing; }
+.tab.drop-in { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--text); }
+.tab-drop-line { height: 2px; margin: -1px 6px -1px calc(22px + var(--depth, 0) * 14px); border-radius: 2px; background: var(--accent); position: relative; z-index: 1; }
+.tab-ghost {
+  position: fixed; left: 0; top: 0; z-index: 1100; pointer-events: none; display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 4px; border-radius: var(--r-in); background: var(--raise); color: var(--text); font-weight: 600;
+  box-shadow: 0 10px 30px rgb(0 0 0 / .4); opacity: .95;
+}
+.card.leaving { opacity: .55; transform: scale(.97); transition: opacity .12s, transform .12s; }
+/* links to boards, linked cards */
+.link-ico.link-board { color: var(--tint, var(--accent)); background: color-mix(in srgb, var(--tint, var(--accent)) 16%, transparent); font-size: 13px; }
+.md-view a[href^="homeboard:"], .note-text a[href^="homeboard:"] { text-decoration: none; padding: 0 4px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.md-view a[href^="homeboard:"]::before, .note-text a[href^="homeboard:"]::before { content: '↗ '; opacity: .7; }
+.card-linked { width: auto !important; padding: 0 6px !important; gap: 3px; display: inline-flex; align-items: center; font-size: 11px; color: var(--accent); }
+.card-linked svg { width: 13px; height: 13px; }
+.card.flash { animation: card-flash 1.1s ease 1; }
+@keyframes card-flash { 0%, 100% { box-shadow: var(--card-shadow, none); } 30% { box-shadow: 0 0 0 3px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 50%, transparent); } }

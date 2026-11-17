@@ -139,7 +139,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     // pan + zoom
     await drag(sid, 700, 780, 760, 740);
     await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 700, y: 700, deltaX: 0, deltaY: -200, modifiers: 2 }, sid);
-    await sleep(500);
+    await sleep(1300);                                  // the zoom is eased, then saved
     s = await stored(sid);
     ok('pan + ctrl-wheel zoom saved', s.boards[0].view.x !== 0 && s.boards[0].view.z > 1, JSON.stringify(s.boards[0].view));
     await ev(sid, `document.querySelector('#zoom-fit').click()`);
@@ -426,7 +426,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     const chips = await ev(m.sid, `document.querySelector('.card-todo .todo-meta').textContent`);
     ok('to-do details: step, note, link, due date and star are saved and shown', task.steps.length === 1 && task.steps[0].text === 'Step one' && task.note === 'remember the receipt' && task.link === 'https://example.org/page' && task.due === '2030-01-02' && task.star && /0\/1 steps/.test(chips) && /example\.org/.test(chips), chips);
 
-    await ev(m.sid, `(() => { document.querySelector('.card-links .link-add').click(); const f = document.querySelector('.card-links .link-form'), [url, name] = f.querySelectorAll('input'), how = f.querySelector('select');
+    await ev(m.sid, `(() => { document.querySelector('.card-links .link-add').click(); const f = document.querySelector('.card-links .link-form'), [url, name] = f.querySelectorAll('input'), how = f.querySelector('select[aria-label="Open with"]');
       url.value = ${JSON.stringify(ext + '\\')}; url.dispatchEvent(new Event('input', { bubbles: true })); window.__howShown = !how.hidden; how.value = 'explorer'; name.value = 'Project folder'; f.requestSubmit(); })()`);
     await sleep(600);
     const lk = (await firstBoard()).cards.find(c => c.type === 'links').links.pop();

@@ -67,7 +67,10 @@ Rename, Delete (to the Recycle Bin); right-click empty space for Paste and New
 folder; drag a file onto another file browser to move it (hold Ctrl to copy).
 The **Console** button adds a PowerShell card (Ctrl+C restarts it; full-screen
 terminal programs are not supported). A backup is written once a day to
-`backups\` in this folder (two weeks are kept).
+`backups\` in this folder (two weeks are kept). The helper also starts apps and
+places windows for the **Apps** and **Workspace** cards (through
+`helper\winbridge.ps1`, which only lists, starts and moves windows — it never
+closes or types into anything).
 
 ## Firefox
 
@@ -86,9 +89,12 @@ terminal programs are not supported). A backup is written once a day to
 | Do this | To |
 | --- | --- |
 | Click a board | Open it |
+| Drag a board | Move it, as in OneNote: onto the top or bottom of another board to put it before or after, onto the middle to put it inside (resting on a closed board opens it), onto "New board" for the top level |
+| Drag a card by its top edge onto a board in the tree | Move the card to that board (**Go there** follows it) |
 | The + on a row, or "New board" | Add a board inside another, or at the top level |
 | Double-click a name (or F2) | Rename |
 | Right-click a board | Icon, colour, move up/down/inside, delete, and: |
+| …"Copy link to this board" | A link to paste into a note or a Links card (see **Links to boards** below) |
 | …"Copy board", "Duplicate board", "Paste board inside / after this one" | Copy a board with the boards inside it (also **Ctrl+C** / **Ctrl+D** on a focused board row). **Ctrl+V** on the board pastes a copied board, even one copied in another Homeboard |
 | …"Show a page, PDF or folder instead of cards" | Make the board one full page |
 | …"Notes panel on the side" | Keep a notes column for that board |
@@ -105,7 +111,9 @@ terminal programs are not supported). A backup is written once a day to
 | Click a card's top edge, then Ctrl+C / X / V / D | Copy, cut, paste, duplicate the card |
 | Ctrl+V on empty board | Text → note; address or folder path → website window; screenshot → picture |
 | Drop pictures, videos or PDFs on the board | Decorate; right-click → "Keep behind other cards" |
-| Drag the background, scroll, Ctrl + scroll | Pan and zoom |
+| Drag the background, scroll, Ctrl + scroll | Pan and zoom (see **Moving around** below) |
+| The ⤢ button on a card's top edge, **F**, or double-click the top edge (not the title's words) | **Expand**: the card big in the middle of the screen over a dimmed board, to read and write without scrolling. **Esc** or a click on the board puts it back. Website windows, pictures and widgets zoom the board to themselves instead |
+| Ctrl + scroll over the selected card, or right-click → **Text size** | Bigger / smaller text in that card only (notes, to-dos, links, files, console, websites). **Grows with the card** makes the text follow the card's size when you resize it |
 | **Ctrl+Z** / **Ctrl+Y** (or Ctrl+Shift+Z) | Undo / redo anything on the boards: moving, resizing, deleting, adding, renaming, boards, looks. Inside a note or field, they undo the typing as usual |
 | `/` · `Delete` | Jump to the search box · remove the selected card (Undo appears) |
 
@@ -126,6 +134,48 @@ time the board is opened. A forgotten password cannot be recovered.
 
 **Export** — right-click a note or to-do list → **Export as Markdown (.md)**; right-click a board → **Export notes as Markdown (.zip)** (that board and the boards inside it); Customize → Your data → **Export notes as Markdown** (everything). The zip has a folder per board; strings between cards become `[[links]]` as in Obsidian. Locked notes are never exported in bulk.
 
+**Moving around** — built after how tldraw, Figma, Miro and d3-zoom handle it:
+a scroll that starts on the board keeps moving the board even when the pointer
+passes over cards; over a card, its contents scroll only if they can (else the
+board moves); a mouse wheel's steps are eased, a touchpad is used as it comes,
+and a touchpad pinch zooms. Hold **Space** (or the middle button) and drag
+anywhere to pan, even over cards; a quick flick of the background glides on.
+Arrow keys pan (Shift for more), **+** / **-** zoom. Zoom goes from 10 % to 300 %.
+
+**Apps** (the Apps button at the bottom → App launcher) — tiles for programs with
+their real icons: **Add** lists the Start menu apps (search as you type), or
+type any program, file or folder path; files dragged from a file browser card
+work too. Click a tile to start it; right-click to rename, add arguments, move
+or remove. Needs the helper.
+
+**Workspaces** (Apps button → Workspace) — a set of apps, folders and websites
+with a place on the screen each, drawn as a small picture of your screen(s).
+**Open** starts whatever is not open yet and puts every window in its place;
+what is already open is only moved (so it also tidies up). Click an item for its
+place (halves, thirds, two thirds, quarters, middle, whole screen), its screen,
+"Open just this", rename or remove. **Capture** takes the windows on your screen
+right now — Edge windows as websites, Explorer windows as folders, other
+programs as apps — with their places (Undo is offered). Websites open as Edge
+windows (popups, or with tabs when ticked) and work without the helper; apps and
+folders need it. A workspace remembers which program each app opened as, so the
+next time it finds its window even when the app changed its title.
+
+**Links to boards, views and cards** — right-click a board → **Copy link to
+this board**; in the views menu, a view → **Copy link to this view**; right-click
+a card → **Copy link to this card**. Paste the link into a note (it shows as a
+link with ↗) or into a Links card (it shows as the board's chip); a click opens
+that board, at that view, or centred on that card. The Links card's Add form
+also has **Or pick a board or view** to choose one without copying.
+
+**Linked notes** — the same note (or to-do list) in several places, on one
+board or on many: change any of them and all of them change. Make one with
+right-click → **Linked copy (stays the same)** → here or on another board; or
+copy a card (Ctrl+C) and paste it with **Ctrl+Shift+V**. A plain Ctrl+V pastes a
+separate copy and offers **Keep them the same**. Linked cards carry a ⛓ mark with
+the number of places; click it to go to the others or **Make this one
+separate**. Colour, size and place stay each copy's own. (Pasting a note's text
+inside another note pastes just the text, as before.)
+
 **Saved views** — the bookmark button next to the zoom: **Save this view**, jump to saved views, **Back to the start view** (also the **Home** key, or right-click the bookmark button), make any view the start view, and **Lock the view** so the board cannot be moved or zoomed by accident. Keys **1–9** jump to saved views in order. Each board keeps its own.
 
 **To-do lists** — the small arrow on a task opens its details: steps, notes, a
@@ -134,7 +184,7 @@ link to open later, a due date and a star.
 **Links** — an address can be a website or a folder/file on this computer; for
 those you choose "Open in a browser tab" or "Open in File Explorer".
 
-**Website windows** — they get what a normal tab gets (downloads, dialogs, casting, camera and microphone when the site asks), except replacing the board. If a site does not show within a few seconds, the window offers to open it **in its own window**: a real Edge window placed over the card, where every site works; **Always** keeps that choice for the window (also in its right-click menu, **Always open in its own window**). When a site sends you to a sign-in page that refuses to be inside another page (Google, Microsoft, Apple), the window offers **Sign in** in a real window and reloads when you close it. Right-click its top edge → **Show only the website (no frame)** hides the title and address bar, and the site’s own scroll bars (scroll with the wheel or touchpad; **Hide the scroll bars** turns this on or off for any website window): drag the site to move it until you click into it, then the thin strip along its top edge moves it and opens the menu. The window button opens a site in its own window beside the board, for sites that will not show inside it. Type an address, a `.pdf` link, a folder such as
+**Website windows** — they get what a normal tab gets (downloads, dialogs, casting, camera and microphone when the site asks), except replacing the board. If a site does not show within a few seconds, the window offers to open it **in its own window**: a real Edge window placed over the card, where every site works; **Always** keeps that choice for the window (also in its right-click menu, **Always open in its own window**). Once its own window is open, the card offers **Show it live here**: Edge asks once which tab to share (pick the one named in the message) and the card then shows that window live, like a screen share in a call — the window keeps the card's size and keeps drawing behind the board. Click the picture to use the site: the real window comes exactly over the card. The ✕ on the picture stops showing it live. When a site sends you to a sign-in page that refuses to be inside another page (Google, Microsoft, Apple), the window offers **Sign in** in a real window and reloads when you close it. Right-click its top edge → **Show only the website (no frame)** hides the title and address bar, and the site’s own scroll bars (scroll with the wheel or touchpad; **Hide the scroll bars** turns this on or off for any website window): drag the site to move it until you click into it, then the thin strip along its top edge moves it and opens the menu. The window button opens a site in its own window beside the board, for sites that will not show inside it. Type an address, a `.pdf` link, a folder such as
 `C:\Users\you\Downloads\`, or just words to search. An empty window offers
 Google, Wikipedia, YouTube, YouTube Music, Bing, DuckDuckGo and Maps: click one
 to open it, or type first and click to search that site.
@@ -211,7 +261,8 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
 | `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle, sound visualiser, YouTube Music styles |
 | `widgets-music.js`, `ytm.js` | The YouTube Music widget, and the small script Homeboard runs inside YouTube Music pages to read and control the player |
-| `extras.css` | Looks list, hidden/locked cards, cue rack and tobacco machine |
+| `extras.css` | Looks list, hidden/locked cards, cue rack and tobacco machine, apps and workspaces |
+| `apps.js` | The Apps and Workspace cards |
 | `manifest.json`, `background.js` | The extension wrapper |
 | `tools/install.ps1`, `tools/rollback.ps1` | Install or update the daily copy; go back one version |
 | `tools/` (other scripts) | Start the helper, start it with Windows, the File Explorer link helper |
@@ -219,6 +270,9 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/linkstest.js` | Checks dragging boards, dropping cards on boards, links to boards / views / cards, linked notes |
+| `dev/navtest.js` | Checks moving around (real wheel, pinch, flick, Space-drag), Expand, text size, the Apps and Workspace cards, and live own windows |
+| `dev/appstest.js` | Checks the helper's apps and windows on the real desktop (opens and closes Character Map and a test folder) |
 | `dev/webtest.js` | Checks website windows: permissions, the not-showing notice, the Google sign-in hand-off, own windows |
 | `dev/filestest.js` | Checks the Edge Markdown viewer, editing and saving files, and hidden scroll bars (needs the helper running) |
 | `dev/boardstest.js` | Checks undo/redo and copying, pasting and duplicating boards |

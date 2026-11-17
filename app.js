@@ -95,6 +95,8 @@ const ICONS = {
   volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.500 8.500a5 5 0 0 1 0 7"/>',
   mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9.500 4 5M21 9.500l-4 5"/>',
   layers: '<path d="M12 4 3 9l9 5 9-5z"/><path d="m3 14 9 5 9-5"/>',
+  apps: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.600"/><rect x="13.500" y="4" width="6.5" height="6.5" rx="1.600"/><rect x="4" y="13.500" width="6.5" height="6.5" rx="1.600"/><rect x="13.500" y="13.500" width="6.5" height="6.5" rx="1.600"/>',
+  space: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 4v13M12 10.500h9M9 21h6"/>',
   widget: '<rect x="4" y="4" width="16" height="16" rx="3.500"/><path d="M8.500 8.500h.01M15.500 15.500h.01M12 12h.01M15.500 8.500h.01M8.500 15.500h.01"/>',
 };
 const WIDGETS = globalThis.HomeboardWidgets || {};   // minigames and other self-contained cards, see widgets.js
@@ -185,7 +187,12 @@ const TYPES = {
   files: { label: 'Files',   menu: 'New file browser',   w: 640, h: 400, make: () => ({ path: '' }),      build: buildFiles },
   term:  { label: 'Console', menu: 'New console',        w: 580, h: 340, make: () => ({ cwd: '' }),       build: buildTerm },
   widget: { label: 'Widget', menu: null,                 w: 320, h: 320, make: () => ({ widget: '' }),    build: buildWidget },
+  apps:  { label: 'Apps',    menu: 'New app launcher',   w: 360, h: 220, make: () => ({ apps: [] }),  build: (c, body) => appsKit().apps(c, body) },
+  space: { label: 'Workspace', menu: 'New workspace',    w: 440, h: 330, make: () => ({ items: [] }), build: (c, body) => appsKit().space(c, body) },
 };
+/* apps.js: the app launcher and workspaces (made on first use, when everything they need exists) */
+let appsMade = null;
+const appsKit = () => appsMade || (appsMade = window.HomeboardApps({ h, icon, helper, helperHint, toast, openMenu, save, uid, api, FILES_DND }));
 const CLIP_TYPE = 'application/x-homeboard-card+json';
 const minW = c => (c.type === 'media' ? 60 : c.type === 'widget' ? 110 : MIN_W);
 const minH = c => (c.type === 'media' ? 45 : c.type === 'widget' ? 80 : MIN_H);
@@ -212,6 +219,24 @@ const board = () => state.boards.find(b => b.id === state.active) || state.board
 const snap = v => (state.settings.snap ? Math.round(v / GRID) * GRID : Math.round(v));
 const cardEl = id => world.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
 const toWorld = (cx, cy) => { const v = board().view; return { x: (cx - v.x) / v.z, y: (cy - v.y) / v.z }; };
+
+/* One app / folder / website of an Apps or Workspace card, cleaned up. */
+function appItem(it) {
+  if (!it || typeof it !== 'object') return null;
+  const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+  const kind = ['app', 'folder', 'site'].includes(it.kind) ? it.kind : 'app';
+  const out = { id: String(it.id || uid()), kind, name: str(it.name, 80) || 'App' };
+  if (kind === 'site') { try { const u = new URL(String(it.url)); if (!/^https?:$/.test(u.protocol)) return null; out.url = u.href; } catch { return null; } out.tabs = !!it.tabs; }
+  else if (it.appId && typeof it.appId === 'string') out.appId = str(it.appId, 400);
+  else if (/^([a-z]:[\\/]|\\\\)/i.test(str(it.path, 1000))) { out.path = str(it.path, 1000); out.args = str(it.args, 500); }
+  else return null;
+  if (typeof it.exe === 'string' && /\.exe$/i.test(it.exe)) out.exe = str(it.exe, 1000);
+  if (typeof it.icon === 'string' && it.icon.startsWith('data:image/png;base64,') && it.icon.length < 60000) out.icon = it.icon;
+  const z = it.zone || {}, f = v => Math.min(1, Math.max(0, +v || 0));
+  out.screen = Math.max(0, Math.min(8, Math.round(+it.screen || 0)));
+  out.zone = { x: f(z.x), y: f(z.y), w: f(z.w) || 1, h: f(z.h) || 1 };
+  return out;
+}
 
 function defaultState() {
   const item = text => newTask(text);
@@ -272,14 +297,14 @@ function normalize(s) {
     b.id = String(b.id || uid());
     b.name = String(b.name || 'Board').slice(0, 40);
     const v = b.view || {};
-    b.view = { x: +v.x || 0, y: +v.y || 0, z: clamp(+v.z || 1, .25, 2) };
+    b.view = { x: +v.x || 0, y: +v.y || 0, z: clamp(+v.z || 1, .1, 3) };
     b.cards = list(b.cards).filter(c => TYPES[c.type]);
     b.parent = b.parent ? String(b.parent) : null;
     b.look = b.look && s.looks.some(l => l.id === b.look) ? b.look : null;
     b.icon = typeof b.icon === 'string' ? [...b.icon].slice(0, 4).join('') : '';
     b.color = COLORS[b.color] ? b.color : null;
     b.kind = b.kind === 'file' ? 'file' : 'board';
-    b.views = list(b.views).slice(0, 30).map(p => ({ id: String(p.id || uid()), name: String(p.name || 'View').slice(0, 40), cx: +p.cx || 0, cy: +p.cy || 0, z: clamp(+p.z || 1, .25, 2) }));
+    b.views = list(b.views).slice(0, 30).map(p => ({ id: String(p.id || uid()), name: String(p.name || 'View').slice(0, 40), cx: +p.cx || 0, cy: +p.cy || 0, z: clamp(+p.z || 1, .1, 3) }));
     b.home = b.views.some(p => p.id === b.home) ? b.home : null;
     b.frozen = !!b.frozen;
     b.side = !!b.side; b.collapsed = !!b.collapsed;
@@ -287,6 +312,9 @@ function normalize(s) {
     if (b.page && typeof b.page === 'object') b.page = { url: toAddress(String(b.page.url || '')) || '', title: b.name, named: true }; else delete b.page;
     for (const c of b.cards) {
       c.id = String(c.id || uid());
+      if (typeof c.sync === 'string' && /^[\w-]{1,40}$/.test(c.sync) && (c.type === 'note' || c.type === 'todo')) { /* linked group */ } else delete c.sync;
+      if (c.zoom != null) { if (+c.zoom > 0) c.zoom = clamp(+c.zoom, .3, 4); else delete c.zoom; }
+      if (c.grow != null && !(+c.grow > 0)) delete c.grow;
       c.x = +c.x || 0; c.y = +c.y || 0; c.z = +c.z || 0;
       c.w = Math.max(minW(c), +c.w || TYPES[c.type].w);
       c.h = Math.max(minH(c), +c.h || TYPES[c.type].h);
@@ -311,6 +339,8 @@ function normalize(s) {
       if (c.type === 'links') c.links = list(c.links).map(l => ({ id: String(l.id || uid()), title: String(l.title || ''), url: toAddress(String(l.url || '')), how: l.how === 'explorer' ? 'explorer' : 'tab' })).filter(l => l.url);
       if (c.type === 'files') { const p = toAddress(String(c.path || '')); c.path = p && isLocal(p) ? p.replace(/\/?$/, '/') : ''; }
       if (c.type === 'web') { c.url = toAddress(String(c.url || '')) || ''; c.plain = !!c.plain; c.own = !!c.own; if (typeof c.noScroll !== 'boolean') delete c.noScroll; }
+      if (c.type === 'apps') c.apps = list(c.apps).map(appItem).filter(Boolean);
+      if (c.type === 'space') c.items = list(c.items).map(appItem).filter(Boolean).slice(0, 40);
       if (c.type === 'term') c.cwd = typeof c.cwd === 'string' ? c.cwd.slice(0, 400) : '';
       if (c.type === 'media') {
         c.kind = ['image', 'video', 'pdf'].includes(c.kind) ? c.kind : 'image';
@@ -341,7 +371,13 @@ function normalize(s) {
   return s;
 }
 
+function saveView() {                                // the view changed: keep it, but it is not an undo step
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flush, 400);
+}
 function save() {
+  spreadShared();
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 250);
@@ -437,6 +473,9 @@ const hostOf = url => { try { return new URL(url).hostname.replace(/^www\./, '')
 /* Website windows also take Windows paths (C:\Users\me\Downloads\, \\server\share) and file:// addresses. */
 function toAddress(v) {
   v = v.trim().replace(/^"(.*)"$/, '$1');
+  const md = /^\[[^\]]*\]\((homeboard:[^)\s]+)\)$/.exec(v);
+  if (md) v = md[1];
+  if (BOARD_LINK.test(v)) return v;
   if (/^[a-z]:[\\/]/i.test(v) || v.startsWith('\\\\')) {
     const unc = v.startsWith('\\\\');
     const parts = v.replace(/\\/g, '/').replace(/^\/+/, '').split('/');
@@ -715,7 +754,7 @@ function plainPaste(e) {
 function applyView() {
   const { x, y, z } = board().view;
   world.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
-  const step = GRID * z * (z < .5 ? 2 : 1);
+  const step = GRID * z * (z < .2 ? 4 : z < .5 ? 2 : 1);
   canvas.style.setProperty('--gx', x + 'px');
   canvas.style.setProperty('--gy', y + 'px');
   canvas.style.setProperty('--gs', step + 'px');
@@ -728,13 +767,14 @@ let flying = 0;
 function goTo(to) {
   const v = board().view, from = { ...v };
   cancelAnimationFrame(flying);
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { Object.assign(v, to); applyView(); save(); return; }
+  stopGlide();
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { Object.assign(v, to); applyView(); saveView(); return; }
   const t0 = performance.now();
   const step = now => {
     const k = Math.min(1, (now - t0) / 340), e = 1 - (1 - k) ** 3;
     v.x = from.x + (to.x - from.x) * e; v.y = from.y + (to.y - from.y) * e; v.z = from.z + (to.z - from.z) * e;
     applyView();
-    if (k < 1) flying = requestAnimationFrame(step); else save();
+    if (k < 1) flying = requestAnimationFrame(step); else saveView();
   };
   flying = requestAnimationFrame(step);
 }
@@ -752,6 +792,7 @@ function viewsMenu(x, y) {
     { label: 'Go there', icon: 'arrow', action: () => goTo(viewOf(p)) },
     { label: 'Make it the start view', checked: b.home === p.id, action() { b.home = b.home === p.id ? null : p.id; save(); } },
     { label: 'Replace with what is on screen now', icon: 'reload', action() { Object.assign(p, viewHere()); save(); toast(`“${p.name}” now shows this.`); } },
+    { label: 'Copy link to this view', icon: 'links', action: () => copyBoardLink(`homeboard:board/${b.id}/view/${p.id}`) },
     { label: 'Rename…', icon: 'edit', action: () => renameView(p) },
     { label: 'Delete', icon: 'trash', danger: true, action() { b.views.splice(b.views.indexOf(p), 1); if (b.home === p.id) b.home = null; save(); } },
   ];
@@ -777,16 +818,16 @@ function viewsMenu(x, y) {
 function zoomAt(cx, cy, factor) {
   if (board().frozen) return;
   const v = board().view;
-  const z = clamp(v.z * factor, .25, 2), k = z / v.z;
+  const z = clamp(v.z * factor, ZMIN, ZMAX), k = z / v.z;
   v.x = cx - (cx - v.x) * k;
   v.y = cy - (cy - v.y) * k;
   v.z = z;
-  applyView(); save();
+  applyView(); saveView();
 }
 function zoomStep(dir) {
   const v = board().view;
-  const target = clamp(Math.round(v.z * (dir > 0 ? 1.2 : 1 / 1.2) * 20) / 20, .25, 2);
-  zoomAt(innerWidth / 2, innerHeight / 2, target / v.z);
+  const target = clamp(Math.round(v.z * (dir > 0 ? 1.2 : 1 / 1.2) * 20) / 20, ZMIN, ZMAX);
+  ease.zoom(innerWidth / 2, innerHeight / 2, Math.log(target / v.z));
 }
 function fitView() {
   const b = board(), v = b.view;
@@ -795,7 +836,7 @@ function fitView() {
   const x1 = Math.max(...b.cards.map(c => c.x + c.w)), y1 = Math.max(...b.cards.map(c => c.y + c.h));
   const top = 68, bottom = 76, pad = 28;
   const W = innerWidth - pad * 2, H = innerHeight - top - bottom;
-  const z = clamp(Math.min(W / (x1 - x0), H / (y1 - y0)), .25, 1);
+  const z = clamp(Math.min(W / (x1 - x0), H / (y1 - y0)), ZMIN, 1);
   goTo({ z, x: pad + (W - (x1 - x0) * z) / 2 - x0 * z, y: top + (H - (y1 - y0) * z) / 2 - y0 * z });
 }
 
@@ -821,29 +862,144 @@ function track(onMove, onEnd, cls = '') {
   addEventListener('pointercancel', end);
 }
 
+/* Moving around, the way good canvas apps do it (tldraw, Figma, Miro, d3-zoom, and the browsers' own scrolling):
+   - drag the background, or hold Space / the middle button and drag anywhere; a flick glides on and slows down
+   - a wheel gesture (events less than ~200 ms apart) keeps the target it started on ("scroll latching"):
+     a pan that passes over a card keeps panning; scrolling inside a card never jumps over to the board
+   - inside a card, its contents scroll only when the thing under the pointer can scroll that way (or it is in use);
+     anything else under the pointer pans the board
+   - a mouse wheel moves in notches, so those are eased over a few frames (like Lenis); a touchpad already sends
+     smooth deltas, which are used as they come
+   - a touchpad pinch arrives as Ctrl + wheel with small deltas: it zooms ten times faster than a Ctrl + mouse notch (d3-zoom) */
+const ZMIN = .1, ZMAX = 3;
+const ease = (() => {
+  let px = 0, py = 0, pz = 0, ax = 0, ay = 0, raf = 0, last = 0;
+  const frame = now => {
+    const dt = Math.min(50, now - (last || now - 16)); last = now;
+    const k = 1 - Math.exp(-dt / 55);                   // about 90 % of a notch in 130 ms
+    const v = board().view;
+    if (Math.abs(px) + Math.abs(py) > .3) { const dx = px * k, dy = py * k; px -= dx; py -= dy; v.x -= dx; v.y -= dy; } else { v.x -= px; v.y -= py; px = py = 0; }
+    if (Math.abs(pz) > .0005) { const d = pz * k; pz -= d; zoomAt(ax, ay, Math.exp(d)); } else if (pz) { zoomAt(ax, ay, Math.exp(pz)); pz = 0; }
+    applyView(); saveView();
+    raf = px || py || pz ? requestAnimationFrame(frame) : 0;
+    if (!raf) last = 0;
+  };
+  const go = () => { if (!raf) raf = requestAnimationFrame(frame); };
+  return {
+    pan(dx, dy) { if (board().frozen) return; px += dx; py += dy; go(); },
+    zoom(cx, cy, logFactor) {
+      if (board().frozen) return;
+      const v = board().view, want = clamp(Math.log(v.z) + pz + logFactor, Math.log(ZMIN), Math.log(ZMAX));
+      pz = want - Math.log(v.z); ax = cx; ay = cy; go();
+    },
+    stop() { px = py = pz = 0; cancelAnimationFrame(raf); raf = 0; last = 0; },
+  };
+})();
+/* A flick of the board glides on and slows down, like a phone list. Stops at any touch. */
+let glideRaf = 0;
+function stopGlide() { cancelAnimationFrame(glideRaf); glideRaf = 0; }
+function glide(vx, vy) {                              // pixels per millisecond
+  if (Math.hypot(vx, vy) < .35 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let last = performance.now();
+  const v = board().view;
+  const step = now => {
+    const dt = Math.min(40, now - last); last = now;
+    const f = Math.exp(-dt / 260);                    // friction
+    v.x += vx * dt; v.y += vy * dt; vx *= f; vy *= f;
+    applyView();
+    if (Math.hypot(vx, vy) > .02) glideRaf = requestAnimationFrame(step); else { glideRaf = 0; saveView(); }
+  };
+  glideRaf = requestAnimationFrame(step);
+}
+function panDrag(e) {
+  stopGlide(); ease.stop();
+  if (board().frozen) return;
+  const v = board().view, ox = e.clientX - v.x, oy = e.clientY - v.y;
+  const trail = [];                                   // recent positions, for the flick speed
+  track(ev => {
+    v.x = ev.clientX - ox; v.y = ev.clientY - oy; applyView();
+    trail.push([ev.timeStamp, ev.clientX, ev.clientY]);
+    while (trail.length > 2 && ev.timeStamp - trail[0][0] > 90) trail.shift();
+  }, () => {
+    saveView();
+    const a = trail[0], b = trail[trail.length - 1];
+    if (a && b && b[0] - a[0] > 10 && performance.now() - b[0] < 60) glide((b[1] - a[1]) / (b[0] - a[0]), (b[2] - a[2]) / (b[0] - a[0]));
+  }, 'panning');
+}
+let spaceDown = false;
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.repeat || isEditable(e.target) || e.ctrlKey || e.altKey || e.metaKey) return;
+  e.preventDefault(); spaceDown = true; document.body.classList.add('space-pan');
+});
+addEventListener('keyup', e => { if (e.code === 'Space') { spaceDown = false; document.body.classList.remove('space-pan'); } });
+addEventListener('blur', () => { spaceDown = false; document.body.classList.remove('space-pan'); });
+document.addEventListener('pointerdown', e => {      // Space + drag pans from anywhere, even over a card
+  if (!spaceDown || e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  panDrag(e);
+}, true);
 canvas.addEventListener('pointerdown', e => {
+  stopGlide();
   const onBg = e.target === canvas;
   if (!((onBg && e.button === 0) || e.button === 1)) return;
   if (onBg) { select(null); document.activeElement?.blur?.(); }
-  if (board().frozen) return;
-  const v = board().view, ox = e.clientX - v.x, oy = e.clientY - v.y;
-  track(ev => { v.x = ev.clientX - ox; v.y = ev.clientY - oy; applyView(); }, save, 'panning');
+  if (e.button === 1) e.preventDefault();
+  panDrag(e);
 });
 canvas.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+
+/* the element inside a card that would scroll for this wheel movement, if any */
+function scrollerFor(target, cardNode, dx, dy) {
+  for (let n = target; n && n !== cardNode.parentNode; n = n.parentElement) {
+    if (n.nodeType !== 1) continue;
+    const st = getComputedStyle(n);
+    if (dy && /(auto|scroll)/.test(st.overflowY) && n.scrollHeight > n.clientHeight + 1
+      && (dy < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return n;
+    if (dx && /(auto|scroll)/.test(st.overflowX) && n.scrollWidth > n.clientWidth + 1
+      && (dx < 0 ? n.scrollLeft > 0 : n.scrollLeft + n.clientWidth < n.scrollWidth - 1)) return n;
+    if (n === cardNode) break;
+  }
+  return null;
+}
+let wheelGesture = null;                              // { to: 'board' | 'card' | 'zoom' | 'text', mouse, until }
+const isMouseWheel = e => e.deltaMode !== 0 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 50);
 canvas.addEventListener('wheel', e => {
-  const unit = e.deltaMode === 1 ? 16 : 1;
-  if (e.ctrlKey || e.metaKey) {
-    e.preventDefault();
-    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * unit * .0015));
+  stopGlide();
+  const now = e.timeStamp, unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1;
+  const zooming = e.ctrlKey || e.metaKey;
+  let g = wheelGesture && now < wheelGesture.until && (wheelGesture.to === 'zoom' || wheelGesture.to === 'text') === zooming ? wheelGesture : null;
+  if (!g) {
+    const cardNode = e.target.closest('.card');
+    let to = 'board';
+    if (zooming) {
+      // over the selected card: its text size; anywhere else: the whole board
+      to = cardNode && cardNode.classList.contains('selected') && ZOOMABLE.has(board().cards.find(k => k.id === cardNode.dataset.id)?.type) ? 'text' : 'zoom';
+    } else if (cardNode && !e.target.closest('.card-head')) {
+      const dx = e.shiftKey ? e.deltaY : e.deltaX, dy = e.shiftKey ? 0 : e.deltaY;
+      if (scrollerFor(e.target, cardNode, dx, dy)) to = 'card';
+    }
+    g = wheelGesture = { to, mouse: isMouseWheel(e), card: cardNode?.dataset.id };
+    document.body.classList.toggle('wheel-pan', to === 'board');   // frames under the pointer must not catch the rest of the gesture
+  }
+  g.until = now + (g.mouse ? 260 : 180);
+  clearTimeout(g.timer);
+  g.timer = setTimeout(() => { document.body.classList.remove('wheel-pan'); if (wheelGesture === g) wheelGesture = null; }, g.mouse ? 260 : 180);
+  if (g.to === 'card') return;                        // the browser scrolls the card's contents
+  e.preventDefault();
+  if (g.to === 'text') {
+    const c = board().cards.find(k => k.id === g.card);
+    if (c) setTextSize(c, (c.zoom || 1) * Math.exp(-e.deltaY * unit * (g.mouse ? .0015 : .01)));
     return;
   }
-  if (e.target.closest('.card')) return;            // let card contents scroll
-  e.preventDefault();
+  if (g.to === 'zoom') {
+    const log = -e.deltaY * unit * (g.mouse ? .0018 : .012);
+    if (g.mouse) ease.zoom(e.clientX, e.clientY, log); else { ease.stop(); zoomAt(e.clientX, e.clientY, Math.exp(log)); }
+    return;
+  }
   if (board().frozen) return;
-  const v = board().view;
-  v.x -= (e.shiftKey ? e.deltaY : e.deltaX) * unit;
-  v.y -= (e.shiftKey ? 0 : e.deltaY) * unit;
-  applyView(); save();
+  const dx = (e.shiftKey ? e.deltaY : e.deltaX) * unit, dy = (e.shiftKey ? 0 : e.deltaY) * unit;
+  if (g.mouse) ease.pan(dx, dy);
+  else { const v = board().view; v.x -= dx; v.y -= dy; applyView(); saveView(); }
 }, { passive: false });
 canvas.addEventListener('dblclick', e => {
   if (e.target !== canvas) return;
@@ -865,7 +1021,18 @@ canvas.addEventListener('contextmenu', e => {
 /* ------------------------------------------------------------------ *
  *  Cards
  * ------------------------------------------------------------------ */
+/* How big a card's contents are drawn: its own text size, times its growth since "grows with the card" was set. */
+const ZOOMABLE = new Set(['note', 'todo', 'links', 'files', 'term', 'web', 'apps']);
+const cardZoom = c => clamp((c.zoom || 1) * (c.grow ? c.w / c.grow : 1), .3, 5);
+function setTextSize(c, z) {
+  c.zoom = clamp(Math.round(z * 100) / 100, .3, 4);
+  const el = cardEl(c.id);
+  if (el) place(el, c);
+  save();
+  toast(`Text ${Math.round(cardZoom(c) * 100)}%`);
+}
 function place(el, c) {
+  if (ZOOMABLE.has(c.type)) el.style.setProperty('--cz', cardZoom(c));
   el.style.left = c.x + 'px';
   el.style.top = c.y + 'px';
   el.style.width = c.w + 'px';
@@ -882,7 +1049,20 @@ function buildCard(c) {
     class: 'icon-btn', type: 'button', title: 'Colour and more', 'aria-label': 'Card menu',
     onclick() { const r = more.getBoundingClientRect(); cardMenu(c, r.left, r.bottom + 4); },
   }, icon('more'));
-  const head = h('div', { class: 'card-head' }, h('span', { class: 'card-icon' }, icon(c.type)), title, more);
+  const grow = h('button', { class: 'icon-btn card-expand', type: 'button', title: 'Expand (F) · double-click the top edge', 'aria-label': 'Expand', onclick: () => toggleExpand(c) }, icon('expand'));
+  const copies = c.sync ? linkedCopies(c) : [];
+  const linked = copies.length > 0 && h('button', { class: 'icon-btn card-linked', type: 'button', 'aria-label': 'Linked copies',
+    title: `Linked: the same ${c.type === 'todo' ? 'list' : 'note'} is also on ${[...new Set(copies.map(([b]) => b.id === state.active ? 'this board' : '“' + b.name + '”'))].join(', ')}. Changes show everywhere.`,
+    onclick() {
+      const r = linked.getBoundingClientRect();
+      openMenu(r.left, r.bottom + 4, [
+        { info: 'The same note in several places: change it in any of them and all change.' },
+        ...copies.map(([b, k]) => ({ label: b.id === state.active ? 'The copy on this board' : `On “${b.name}”`, icon: 'arrow', action: () => followBoardLink(`homeboard:board/${b.id}/card/${k.id}`) })),
+        { sep: true },
+        { label: 'Make this one separate', icon: 'x', action: () => stopSharing(c) },
+      ]);
+    } }, icon('links'), h('span', null, String(copies.length + 1)));
+  const head = h('div', { class: 'card-head' }, h('span', { class: 'card-icon' }, icon(c.type)), title, linked, grow, more);
   const body = h('div', { class: 'card-body' });
   const grip = h('div', { class: 'card-resize', title: 'Resize' });
   const pin = h('button', {
@@ -905,7 +1085,12 @@ function buildCard(c) {
     cardMenu(c, e.clientX, e.clientY);
   });
   grip.addEventListener('pointerdown', e => { if (e.button === 0) { e.preventDefault(); dragCard(e, c, el, 'size'); } });
-  title.addEventListener('dblclick', () => renameCard(c));
+  // double-click the title's words to rename it; anywhere else on the top edge expands the card (like a window's title bar)
+  const onWords = e => { const rg = document.createRange(); rg.selectNodeContents(title); const r = rg.getBoundingClientRect(); return e.clientX <= r.right + 6; };
+  head.addEventListener('dblclick', e => {
+    if (e.target.closest('button, input, a') || e.target.isContentEditable) return;
+    if (e.target.closest('.card-title') && onWords(e)) renameCard(c); else toggleExpand(c);
+  });
 
   TYPES[c.type].build(c, body, head, more);
   if (c.type === 'web' && c.plain && c.url) el.classList.add('web-plain');
@@ -915,10 +1100,133 @@ function buildCard(c) {
   return el;
 }
 
+/* ---- a card expanded: big, in the middle of the screen, over a dimmed board ---- */
+let expanded = null;                                  // { c, el, mark } or { c, back } for a zoomed website
+const focusLayer = h('div', { id: 'focus-layer', hidden: true });
+document.body.append(focusLayer);
+focusLayer.addEventListener('pointerdown', e => { if (e.target === focusLayer) collapseCard(); });
+function toggleExpand(c) { if (expanded && expanded.c.id === c.id) collapseCard(); else expandCard(c); }
+function expandCard(c) {
+  collapseCard();
+  const el = cardEl(c.id);
+  if (!el) return;
+  select(c.id);
+  if (c.type === 'web' || c.type === 'media' || c.type === 'widget') {   // these keep their place: the board zooms to them
+    const back = { ...board().view };
+    const W = innerWidth - 80, H = innerHeight - 140;
+    const z = clamp(Math.min(W / c.w, H / c.h), ZMIN, ZMAX);
+    goTo({ z, x: innerWidth / 2 - (c.x + c.w / 2) * z, y: 64 + H / 2 + 6 - (c.y + c.h / 2) * z });
+    expanded = { c, back };
+    document.body.classList.add('card-zoomed');
+    return;
+  }
+  const mark = document.createComment('expanded card');
+  el.before(mark);
+  focusLayer.append(el);
+  el.classList.add('expanded');
+  el.style.setProperty('--cz', clamp(c.zoom || 1, .6, 4));
+  focusLayer.hidden = false;
+  document.body.classList.add('has-expanded');
+  expanded = { c, el, mark };
+  requestAnimationFrame(() => focusLayer.classList.add('open'));
+}
+function collapseCard() {
+  const x = expanded;
+  if (!x) return false;
+  expanded = null;
+  document.body.classList.remove('card-zoomed', 'has-expanded');
+  if (x.back) { goTo(x.back); return true; }
+  focusLayer.classList.remove('open');
+  focusLayer.hidden = true;
+  x.el.classList.remove('expanded');
+  if (x.mark.isConnected) x.mark.replaceWith(x.el); else { x.mark.remove(); x.el.remove(); }   // the board was drawn again meanwhile
+  const c = board().cards.find(k => k.id === x.c.id);
+  if (c && x.el.isConnected) place(x.el, c);
+  return true;
+}
+
+/* ---- linked cards: one note or to-do list in several places; a change in any of them changes all ----
+   Cards of one group share `sync`. After every change, the copy that differs from what was last spread is
+   copied to the others, and those on screen are drawn again. */
+const SHARED = { note: ['md', 'html', 'markdown', 'title', 'named'], todo: ['items', 'title', 'named'] };
+const spread = new Map();                             // group -> what its cards hold now (as text)
+const sharedSig = c => JSON.stringify(SHARED[c.type].map(k => c[k] ?? null));
+function linkedCopies(c) {
+  const out = [];
+  if (c.sync) for (const b of state.boards) for (const k of b.cards) if (k.sync === c.sync && k.id !== c.id) out.push([b, k]);
+  return out;
+}
+function spreadShared() {
+  const groups = new Map();
+  for (const b of state.boards) for (const c of b.cards) {
+    if (!c.sync || !SHARED[c.type] || c.lock) continue;
+    if (!groups.has(c.sync)) groups.set(c.sync, []);
+    groups.get(c.sync).push([b, c]);
+  }
+  for (const [id, list] of groups) {
+    const sigs = list.map(([, c]) => sharedSig(c)), last = spread.get(id);
+    if (sigs.every(x => x === sigs[0])) { spread.set(id, sigs[0]); continue; }
+    const i = Math.max(0, sigs.findIndex(x => x !== last));
+    const from = list[i][1];
+    for (const [b, c] of list) {
+      if (c === from || c.type !== from.type) continue;
+      for (const k of SHARED[c.type]) { if (from[k] === undefined) delete c[k]; else c[k] = structuredClone(from[k]); }
+      if (b.id === state.active) redrawSoon(c);
+    }
+    spread.set(id, sigs[i]);
+  }
+}
+const redrawing = new Set();
+function redrawSoon(c) {                              // a linked copy on screen shows the change (not the one being typed in)
+  if (redrawing.has(c.id)) return;
+  redrawing.add(c.id);
+  requestAnimationFrame(() => {
+    redrawing.delete(c.id);
+    const el = cardEl(c.id);
+    if (!el || el.contains(document.activeElement)) return;
+    refreshCard(c);
+  });
+}
+function makeLinkedCopy(c, b, at) {
+  if (!SHARED[c.type] || c.lock) return null;
+  c.sync ||= uid();
+  const copy = { ...structuredClone(c), id: uid(), sync: c.sync };
+  if (copy.items) for (const it of copy.items) it.id = it.id || uid();
+  const here = b.id === state.active;
+  copy.x = at ? at.x : c.x + (here ? c.w + 30 : 0); copy.y = at ? at.y : c.y;
+  copy.z = here ? ++maxZ : Math.max(0, ...b.cards.map(k => k.z)) + 1;
+  b.cards.push(copy);
+  spread.set(c.sync, sharedSig(c));
+  if (here) { stringsEl.before(buildCard(copy)); select(copy.id); }
+  const mine = cardEl(c.id);
+  if (mine) refreshCard(c);                           // its linked mark appears
+  save();
+  return copy;
+}
+function stopSharing(c) {
+  const rest = linkedCopies(c);
+  delete c.sync;
+  if (rest.length === 1) { delete rest[0][1].sync; if (rest[0][0].id === state.active) refreshCard(rest[0][1]); }
+  refreshCard(c); save();
+}
+
+function moveCardTo(c, b) {
+  const from = board();
+  if (b.id === from.id || !from.cards.includes(c)) return;
+  from.cards.splice(from.cards.indexOf(c), 1);
+  cutStringsOf(from, c.id);
+  c.z = Math.max(0, ...b.cards.map(k => k.z)) + 1;
+  b.cards.push(c);
+  cardEl(c.id)?.remove();
+  if (selected === c.id) selected = null;
+  drawStrings(); save();
+  toast(`Moved to “${b.name}”`, 'Go there', () => followBoardLink(`homeboard:board/${b.id}/card/${c.id}`));
+}
 function dragCard(e, c, el, mode) {
+  if (el.classList.contains('expanded')) return;
   const z = board().view.z, sx = e.clientX, sy = e.clientY;
   const o = { x: c.x, y: c.y, w: c.w, h: c.h };
-  let moved = false;
+  let moved = false, overBoard = null;
   track(ev => {
     const dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
     if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
@@ -933,8 +1241,19 @@ function dragCard(e, c, el, mode) {
     }
     place(el, c);
     drawStrings();
+    if (mode === 'move') {                            // over a board in the tree: dropping moves the card there
+      tabsEl.querySelectorAll('.drop-in').forEach(n => n.classList.remove('drop-in'));
+      const row = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.tab[data-board]');
+      overBoard = row && row.dataset.board !== state.active ? row.dataset.board : null;
+      if (overBoard) row.classList.add('drop-in');
+      el.classList.toggle('leaving', !!overBoard);
+    }
   }, () => {
     if (!moved) return;
+    tabsEl.querySelectorAll('.drop-in').forEach(n => n.classList.remove('drop-in'));
+    el.classList.remove('leaving');
+    const to = overBoard && boardById(overBoard);
+    if (to) { c.x = o.x; c.y = o.y; moveCardTo(c, to); return; }
     save();
     // a drag that started on something clickable must not also count as a click on it
     const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
@@ -1068,6 +1387,7 @@ function addCard(type, at, extra) {
 
 function duplicateCard(c) {
   const copy = { ...structuredClone(c), id: uid(), x: c.x + 26, y: c.y + 26, z: ++maxZ };
+  delete copy.sync;
   board().cards.push(copy);
   stringsEl.before(buildCard(copy));
   select(copy.id);
@@ -1126,23 +1446,36 @@ function cardItems(c) {
       if (c.markdown) c.md = opened.get(c.id).text; else c.html = opened.get(c.id).text;
       delete c.lock; opened.delete(c.id); refreshCard(c); save();
     } },
+    { label: expanded && expanded.c.id === c.id ? 'Back to the board' : 'Expand', icon: 'expand', action: () => toggleExpand(c) },
+    ZOOMABLE.has(c.type) && { label: `Text size · ${Math.round(cardZoom(c) * 100)}%`, icon: 'expand', items: [
+      { label: 'Bigger', icon: 'plus', action: () => setTextSize(c, (c.zoom || 1) * 1.15) },
+      { label: 'Smaller', icon: 'minus', action: () => setTextSize(c, (c.zoom || 1) / 1.15) },
+      { label: 'Normal size', icon: 'reload', action() { delete c.grow; setTextSize(c, 1); } },
+      { label: 'Grows with the card', checked: !!c.grow, action() {
+        if (c.grow) { c.zoom = cardZoom(c); delete c.grow; } else c.grow = c.w;    // keep today's size either way
+        setTextSize(c, c.zoom || 1);
+      } },
+      { info: 'Or hold Ctrl and scroll over the selected card.' },
+    ] },
     c.type === 'web' && { label: 'Show only the website (no frame)', checked: !!c.plain, action() { c.plain = !c.plain; refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Hide the scroll bars', checked: hidesBars(c), action() { c.noScroll = !hidesBars(c); refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Always open in its own window', checked: !!c.own, action() { c.own = !c.own; refreshCard(c); save(); } },
     !bare && { label: 'Rename', icon: 'edit', action: () => renameCard(c) },
+    { label: 'Copy link to this card', icon: 'links', action: () => copyBoardLink(`homeboard:board/${state.active}/card/${c.id}`) },
     { label: 'Duplicate', icon: 'copy', action: () => duplicateCard(c) },
+    SHARED[c.type] && !c.lock && { label: 'Linked copy (stays the same)', icon: 'links', items: [
+      { info: 'A second copy of this that changes whenever this one does, and the other way round.' },
+      { label: 'Here, beside it', icon: 'plus', action: () => makeLinkedCopy(c, board()) },
+      ...others.map(b => ({ label: `On “${b.name}”`, icon: 'arrow', action() {
+        const k = makeLinkedCopy(c, b, { x: 80, y: 80 });
+        if (k) toast(`Linked copy put on “${b.name}”.`, 'Go there', () => followBoardLink(`homeboard:board/${b.id}/card/${k.id}`));
+      } })),
+    ] },
+    c.sync && { label: 'Make this one separate', icon: 'x', action: () => stopSharing(c) },
     ...others.map(b => ({
       label: `Move to “${b.name}”`, icon: 'arrow',
       action() {
-        const from = board();
-        from.cards.splice(from.cards.indexOf(c), 1);
-        cutStringsOf(from, c.id);
-        c.z = Math.max(0, ...b.cards.map(k => k.z)) + 1;
-        b.cards.push(c);
-        el.remove();
-        if (selected === c.id) selected = null;
-        drawStrings(); save();
-        toast(`Moved to “${b.name}”`);
+        moveCardTo(c, b);
       },
     })),
     { sep: true },
@@ -1522,9 +1855,14 @@ function buildLinks(c, body) {
   let form = null;
 
   const tile = l => {
-    const local = isLocal(l.url), name = l.title || titleOf(l.url);
+    const inner = BOARD_LINK.test(l.url), local = isLocal(l.url), name = l.title || (inner ? boardLinkName(l.url) : titleOf(l.url));
     const ico = h('span', { class: 'link-ico' });
-    if (local) ico.append(icon(/[\\/]$/.test(addressLabel(l.url)) || !/\.[a-z0-9]{1,5}$/i.test(l.url) ? 'folder' : 'file'));
+    if (inner) {
+      const b = boardById(BOARD_LINK.exec(l.url)[1]);
+      ico.classList.add('link-board');
+      ico.textContent = b ? b.icon || initials(b.name) : '?';
+      if (b?.color) ico.style.setProperty('--tint', COLORS[b.color]);
+    } else if (local) ico.append(icon(/[\\/]$/.test(addressLabel(l.url)) || !/\.[a-z0-9]{1,5}$/i.test(l.url) ? 'folder' : 'file'));
     else {
       let origin = '';
       try { origin = new URL(l.url).origin; } catch { /* letter fallback */ }
@@ -1537,13 +1875,13 @@ function buildLinks(c, body) {
       const live = origin + '/favicon.ico';
       mediaStore.url('fav:' + origin).then(u => { img.src = u || live; }, () => { img.src = live; });
     }
-    const a = h('a', { class: 'link-tile', href: local ? '#' : l.url, title: addressLabel(l.url), draggable: 'false', rel: 'noopener' },
+    const a = h('a', { class: 'link-tile', href: local ? '#' : l.url, title: inner ? 'Go to ' + boardLinkName(l.url) : addressLabel(l.url), draggable: 'false', rel: 'noopener' },
       ico, h('span', { class: 'link-name' }, name));
     if (local) a.addEventListener('click', e => { e.preventDefault(); openLink(l); });
     a.addEventListener('contextmenu', e => {
       e.preventDefault();
       openMenu(e.clientX, e.clientY, [
-        ...(local ? [{ label: 'Open in File Explorer', icon: 'folder', action: () => openLink(l, 'explorer') },
+        ...(inner ? [{ label: 'Go there', icon: 'arrow', action: () => followBoardLink(l.url) }] : local ? [{ label: 'Open in File Explorer', icon: 'folder', action: () => openLink(l, 'explorer') },
                      { label: 'Open in a browser tab', icon: 'external', action: () => openLink(l, 'tab') }]
                   : [{ label: 'Open in new tab', icon: 'external', action: () => window.open(l.url, '_blank', 'noopener') }]),
         { label: 'Edit', icon: 'edit', action: () => edit(l) },
@@ -1561,6 +1899,15 @@ function buildLinks(c, body) {
     form?.remove();
     const url = h('input', { class: 'field', type: 'text', placeholder: 'example.com, or a folder like C:\\Users\\you\\Documents', value: l ? addressLabel(l.url) : '', spellcheck: 'false', 'aria-label': 'Address or folder' });
     const name = h('input', { class: 'field', type: 'text', placeholder: 'Name (optional)', value: l ? l.title : '', 'aria-label': 'Name' });
+    const place = h('select', { class: 'field', 'aria-label': 'A board or view' },
+      h('option', { value: '' }, 'Or pick a board or view of Homeboard…'),
+      state.boards.flatMap(b => [h('option', { value: `homeboard:board/${b.id}` }, b.name),
+        ...(b.views || []).map(p => h('option', { value: `homeboard:board/${b.id}/view/${p.id}` }, `${b.name} › ${p.name}`))]));
+    place.addEventListener('change', () => { if (place.value) { url.value = place.value; url.classList.remove('bad'); syncHow(); } });
+    url.addEventListener('paste', () => setTimeout(() => {   // a copied board link brings its name along
+      const m = /^\[([^\]]*)\]\((homeboard:[^)\s]+)\)$/.exec(url.value.trim());
+      if (m) { url.value = m[2]; if (!name.value) name.value = m[1]; }
+    }));
     const how = h('select', { class: 'field', 'aria-label': 'Open with' },
       h('option', { value: 'tab' }, 'Open in a browser tab'), h('option', { value: 'explorer' }, 'Open in File Explorer'));
     how.value = l && l.how === 'explorer' ? 'explorer' : 'tab';
@@ -1574,12 +1921,12 @@ function buildLinks(c, body) {
         e.preventDefault();
         const u = toAddress(url.value);
         if (!u) { url.classList.add('bad'); url.focus(); return; }
-        const next = { url: u, title: name.value.trim(), how: isLocal(u) ? how.value : 'tab' };
+        const next = { url: u, title: name.value.trim() || (BOARD_LINK.test(u) ? '' : ''), how: isLocal(u) ? how.value : 'tab' };
         if (l) Object.assign(l, next); else c.links.push({ id: uid(), ...next });
         close(); draw(); save();
       },
       onkeydown(e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } },
-    }, url, name, how, h('div', { class: 'btn-row' },
+    }, url, place, name, how, h('div', { class: 'btn-row' },
       h('button', { class: 'btn', type: 'button', onclick: close }, 'Cancel'),
       h('button', { class: 'btn primary', type: 'submit' }, l ? 'Save' : 'Add')));
     body.append(form);
@@ -1994,14 +2341,18 @@ const EMBED_HINT = 'If this window stays blank, the site refuses to be shown ins
 const hidesBars = c => (typeof c.noScroll === 'boolean' ? c.noScroll : !!c.plain);
 /* A site that will not sit inside the board: give it a real browser window, placed where the card is.
    A real window always works (sign-ins, mail, video), because the site is not inside another page. */
-async function openBeside(url, el) {
-  if (!url) return null;
+/* Where an element of the board is on the screen, as a window box (kept on the screen, or Edge refuses it). */
+function screenBox(el, small) {
   const r = el.getBoundingClientRect(), chromeTop = Math.max(0, outerHeight - innerHeight), side = Math.max(0, (outerWidth - innerWidth) / 2);
-  const box = { left: Math.round(screenX + side + r.left), top: Math.round(screenY + chromeTop + r.top), width: Math.max(420, Math.round(r.width)), height: Math.max(320, Math.round(r.height)) };
-  // keep it on the screen (a card can be partly off it), or Edge refuses the window
+  const box = { left: Math.round(screenX + side + r.left), top: Math.round(screenY + chromeTop + r.top), width: Math.max(small ? 200 : 420, Math.round(r.width)), height: Math.max(small ? 120 : 320, Math.round(r.height)) };
   const sx = screen.availLeft || 0, sy = screen.availTop || 0, sw = screen.availWidth || 1280, sh = screen.availHeight || 800;
   box.width = Math.min(box.width, sw); box.height = Math.min(box.height, sh);
   box.left = clamp(box.left, sx, sx + sw - box.width); box.top = clamp(box.top, sy, sy + sh - box.height);
+  return box;
+}
+async function openBeside(url, el) {
+  if (!url) return null;
+  const box = screenBox(el);
   if (api?.windows?.create) {
     for (const where of [box, { width: box.width, height: box.height }]) {
       try { return (await api.windows.create({ url, type: 'popup', ...where })).id; } catch { /* try the next placement */ }
@@ -2015,14 +2366,56 @@ async function openBeside(url, el) {
 const ownWindows = new Map();                        // card id -> its own window
 const windowGone = new Map();                        // window id -> what to do when it closes
 api?.windows?.onRemoved?.addListener(id => { const f = windowGone.get(id); windowGone.delete(id); if (f) f(); });
+/* Size (and, to use it, place) a card's own window so its page matches the card's picture exactly. */
+async function fitOwnWindow(c, el, front) {
+  const wid = ownWindows.get(c.id);
+  if (wid == null || !el.isConnected) return false;
+  try {
+    const w = await api.windows.get(wid, { populate: true }), tab = w.tabs?.[0];
+    const dw = tab?.width ? Math.max(0, w.width - tab.width) : 0, dh = tab?.height ? Math.max(0, w.height - tab.height) : 0;
+    const box = screenBox(el, true);
+    const want = { width: box.width + dw, height: box.height + dh };
+    if (front) Object.assign(want, { left: box.left - Math.round(dw / 2), top: Math.max(screen.availTop || 0, box.top - dh + Math.round(dw / 2)), focused: true });
+    if (w.state !== 'normal') await api.windows.update(wid, { state: 'normal' });
+    if (front || Math.abs(w.width - want.width) > 2 || Math.abs(w.height - want.height) > 2) await api.windows.update(wid, want);
+    return true;
+  } catch { return false; }
+}
 async function openOwnWindow(c, el, onClose) {
   const known = ownWindows.get(c.id);
-  if (known != null) { try { await api.windows.update(known, { focused: true }); return; } catch { ownWindows.delete(c.id); } }
+  if (known != null) {                                // already open: bring it over the card, the same size
+    if (await fitOwnWindow(c, el, true)) return;
+    ownWindows.delete(c.id);
+  }
   const id = await openBeside(c.url, el);
   if (id == null) return;
   ownWindows.set(c.id, id);
-  windowGone.set(id, () => { ownWindows.delete(c.id); onClose?.(); });
+  windowGone.set(id, () => { ownWindows.delete(c.id); stopLive(c.id); onClose?.(); });
   onClose?.();
+}
+/* The site's own window, shown live in its card: Edge's tab sharing (asks once which tab; Edge marks it as shared).
+   The window keeps drawing while shared even when it is behind the board. */
+const liveStreams = new Map();                       // card id -> MediaStream
+function stopLive(id) { const st = liveStreams.get(id); liveStreams.delete(id); st?.getTracks().forEach(t => t.stop()); }
+async function startLive(c, onChange) {
+  const wid = ownWindows.get(c.id);
+  let name = titleOf(c.url);
+  try { if (wid != null) name = (await api.tabs.query({ windowId: wid }))[0]?.title || name; } catch { /* the address will do */ }
+  toast(`In the list, pick the tab “${name}”.`);
+  try {
+    const controller = window.CaptureController ? new CaptureController() : undefined;
+    const p = navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser', frameRate: { ideal: 30 } }, audio: false, controller,
+      preferCurrentTab: false, selfBrowserSurface: 'exclude', surfaceSwitching: 'include', monitorTypeSurfaces: 'exclude',
+    });
+    try { controller?.setFocusBehavior?.('no-focus-change'); } catch { /* older Edge: it may jump to that tab */ }
+    const stream = await p;
+    stopLive(c.id);
+    liveStreams.set(c.id, stream);
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => { if (liveStreams.get(c.id) === stream) { liveStreams.delete(c.id); onChange(); } });
+    toastEl.hidden = true;
+  } catch { toast('Nothing is shown live: no tab was picked.'); }
+  onChange();
 }
 /* The board hears from each website window (frame.js): it loaded, or it went to a sign-in page. */
 const frameWatch = new Map();
@@ -2094,14 +2487,28 @@ function buildWeb(c, body) {
       x.send();
       return;
     }
-    if (c.own && !isLocal(c.url)) {                 // this site lives in its own window
+    if ((c.own || ownWindows.has(c.id)) && !isLocal(c.url)) {   // this site lives in its own window
       frame.classList.add('empty');
-      const open = ownWindows.has(c.id);
+      const open = ownWindows.has(c.id), live = open && liveStreams.get(c.id);
+      if (live) {                                     // its live picture; a click puts the real window over it to use it
+        const video = h('video', { class: 'web-live', autoplay: true, muted: true, playsinline: true, title: 'Click to use it (the real window comes over the card)' });
+        video.srcObject = live;
+        let fitTimer = 0;
+        const ro = new ResizeObserver(() => { clearTimeout(fitTimer); fitTimer = setTimeout(() => { if (!video.isConnected) ro.disconnect(); else fitOwnWindow(c, frame, false); }, 350); });
+        ro.observe(frame);
+        video.addEventListener('click', () => openOwnWindow(c, frame, load));
+        const stop = h('button', { class: 'icon-btn web-live-stop', type: 'button', title: 'Stop showing it live', 'aria-label': 'Stop showing it live', onclick(e) { e.stopPropagation(); stopLive(c.id); load(); } }, icon('x'));
+        frame.classList.remove('empty');
+        frame.replaceChildren(video, stop);
+        return;
+      }
       const fav = h('img', { class: 'web-own-icon', alt: '', referrerpolicy: 'no-referrer', src: (() => { try { return new URL(c.url).origin + '/favicon.ico'; } catch { return ''; } })() });
       fav.addEventListener('error', () => fav.remove());
       frame.replaceChildren(h('div', { class: 'web-empty web-own' }, fav, h('b', null, titleOf(c.url)),
         h('p', { class: 'hint' }, open ? 'Open in its own window.' : 'Opens in its own window, so everything on the site works.'),
-        h('button', { class: 'btn primary', type: 'button', onclick: () => openOwnWindow(c, frame, load) }, open ? 'Bring it to the front' : 'Open')));
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', type: 'button', onclick: () => openOwnWindow(c, frame, load) }, open ? 'Bring it over the card' : 'Open'),
+          open && navigator.mediaDevices?.getDisplayMedia && h('button', { class: 'btn', type: 'button', title: 'Show the window live in this card, like sharing a screen in a call', onclick: () => startLive(c, load) }, 'Show it live here'))));
       return;
     }
     // PDFs and local files need the browser's own viewer, which a sandboxed frame is not given.
@@ -2127,7 +2534,7 @@ function buildWeb(c, body) {
     const box = h('div', { class: 'web-notice', role: 'status' }, h('span', null, text), ...buttons, close);
     frame.append(box);
   };
-  const ownBtn = (label = 'Open it in its own window') => h('button', { class: 'btn primary', type: 'button', onclick: () => openOwnWindow(c, frame) }, label);
+  const ownBtn = (label = 'Open it in its own window') => h('button', { class: 'btn primary', type: 'button', onclick: () => openOwnWindow(c, frame, load) }, label);
   const alwaysBtn = () => h('button', { class: 'btn', type: 'button', title: 'From now on this window opens the site in its own window', onclick() { c.own = true; save(); load(); } }, 'Always');
   function watchFrame() {
     clearTimeout(slow);
@@ -2425,10 +2832,22 @@ function copySelected(e, cut) {
   clip = { text, card: JSON.parse(json) };
   if (cut) removeCard(c); else toast('Card copied. Ctrl+V pastes it.');
 }
+let pasteLinked = false;                            // Ctrl+Shift+V: paste a copied note as a linked copy
+addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'v') { pasteLinked = true; setTimeout(() => { pasteLinked = false; }, 300); } }, true);
+function findCard(id) { for (const b of state.boards) { const c = b.cards.find(k => k.id === id); if (c) return [b, c]; } return null; }
 function pasteCard(raw) {
+  const original = raw && raw.id && findCard(String(raw.id));
+  const shareable = original && SHARED[original[1].type] && !original[1].lock;
+  if (pasteLinked && shareable) {
+    const at = pointerSpot();
+    makeLinkedCopy(original[1], board(), at ? { x: snap(at.x - original[1].w / 2), y: snap(at.y - 16) } : null);
+    toast('Pasted a linked copy: it stays the same as the original.');
+    return;
+  }
   const src = normalize({ boards: [{ cards: [structuredClone(raw)] }] })?.boards[0].cards[0];
   if (!src) return;
   const c = { ...src, id: uid(), z: ++maxZ };
+  delete c.sync;
   for (const it of [...(c.items || []), ...(c.links || [])]) it.id = uid();
   const at = pointerSpot();
   if (at) { c.x = snap(at.x - c.w / 2); c.y = snap(at.y - 16); }
@@ -2441,6 +2860,17 @@ function pasteCard(raw) {
   stringsEl.before(buildCard(c));
   select(c.id);
   save();
+  if (shareable) toast('Pasted a separate copy.', 'Keep them the same', () => {   // turn it into a linked copy instead
+    const [, orig] = findCard(original[1].id) || [];
+    if (!orig || !board().cards.includes(c)) return;
+    orig.sync ||= uid();
+    for (const k of SHARED[orig.type]) { if (orig[k] === undefined) delete c[k]; else c[k] = structuredClone(orig[k]); }
+    c.sync = orig.sync;
+    spread.set(orig.sync, sharedSig(orig));
+    refreshCard(c); if (cardEl(orig.id)) refreshCard(orig);
+    save();
+    toast('Linked: changing either one changes both.');
+  });
 }
 function onPaste(e) {
   const cd = e.clipboardData;
@@ -2491,6 +2921,7 @@ const isUnder = (b, id) => { for (let p = b, n = 0; p && n < 99; p = boardById(p
 const initials = name => { const w = name.trim().split(/\s+/); return ((w.length > 1 ? w[0][0] + w[1][0] : name.trim().slice(0, 2)) || '?').toUpperCase(); };
 
 function renderBoard() {
+  if (expanded) collapseCard();
   const b = board();
   opened.clear();                                   // leaving a board locks its notes again
   document.body.classList.toggle('view-locked', !!b.frozen);
@@ -2544,7 +2975,8 @@ function renderTabs() {
         b.kind === 'file' && h('span', { class: 'tab-kind', title: 'Shows a page instead of cards' }, icon('file')),
         h('span', { class: 'tab-plus', title: 'New board inside', onclick(e) { e.stopPropagation(); addBoard(b.id); } }, icon('plus')));
       t.style.setProperty('--depth', depth);
-      t.addEventListener('click', () => { if (!editing()) openBoard(b); });
+      t.addEventListener('click', () => { if (boardDragged) { boardDragged = false; return; } if (!editing()) openBoard(b); });
+      t.addEventListener('pointerdown', e => { if (!editing()) dragBoard(e, b, t); });
       t.addEventListener('keydown', e => {
         if (editing()) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBoard(b); }
@@ -2565,6 +2997,99 @@ function renderTabs() {
       onkeydown(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addBoard(); } } },
       h('span', { class: 'tab-fold' }), h('span', { class: 'tab-chip plain' }, icon('plus')), h('span', { class: 'tab-name' }, 'New board')));
 }
+
+/* Drag a board in the tree, like pages in OneNote: the top or bottom of a row puts it before or after,
+   the middle puts it inside; resting on a closed board opens it. Dropping on "New board" moves it to the top level. */
+let boardDragged = false;
+function dragBoard(e, b, row) {
+  if (e.button !== 0 || e.target.closest('.tab-fold, .tab-plus')) return;
+  boardDragged = false;
+  const sx = e.clientX, sy = e.clientY;
+  let on = false, drop = null, ghost = null, hoverRow = null, hoverTimer = 0;
+  const line = h('div', { class: 'tab-drop-line' });
+  const clear = () => { tabsEl.querySelectorAll('.drop-in').forEach(n => n.classList.remove('drop-in')); line.remove(); drop = null; };
+  const move = ev => {
+    if (!on) {
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+      on = true;
+      tabsEl.classList.add('hold', 'tab-dragging');
+      ghost = h('div', { class: 'tab-ghost' }, row.querySelector('.tab-chip').cloneNode(true), h('span', null, b.name));
+      document.body.append(ghost);
+    }
+    ghost.style.transform = `translate(${ev.clientX + 14}px, ${ev.clientY - 14}px)`;
+    clear();
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    if (under?.closest?.('.tab-add')) { drop = { where: 'top' }; under.closest('.tab-add').classList.add('drop-in'); return; }
+    const over = under?.closest?.('.tab[data-board]');
+    const target = over && boardById(over.dataset.board);
+    if (!target || isUnder(target, b.id)) { clearTimeout(hoverTimer); hoverRow = null; return; }   // never inside itself
+    const r = over.getBoundingClientRect(), f = (ev.clientY - r.top) / r.height;
+    const where = f < .28 ? 'before' : f > .72 ? 'after' : 'inside';
+    drop = { target, where };
+    if (where === 'inside') over.classList.add('drop-in');
+    else { line.style.setProperty('--depth', over.style.getPropertyValue('--depth') || 0); if (where === 'before') over.before(line); else over.after(line); }
+    if (over.dataset.board !== hoverRow) {
+      hoverRow = over.dataset.board; clearTimeout(hoverTimer);
+      if (target.collapsed && kidsOf(target.id).length) hoverTimer = setTimeout(() => { target.collapsed = false; renderTabs(); }, 650);
+    }
+  };
+  const end = () => {
+    removeEventListener('pointermove', move); removeEventListener('pointerup', end); removeEventListener('pointercancel', end);
+    clearTimeout(hoverTimer);
+    ghost?.remove();
+    tabsEl.classList.remove('hold', 'tab-dragging');
+    const d = drop; clear();
+    if (!on) return;
+    boardDragged = true; setTimeout(() => { boardDragged = false; }, 0);
+    if (!d) return;
+    state.boards.splice(state.boards.indexOf(b), 1);
+    if (d.where === 'top') { b.parent = null; state.boards.push(b); }
+    else if (d.where === 'inside') { b.parent = d.target.id; d.target.collapsed = false; state.boards.push(b); }
+    else { b.parent = d.target.parent || null; const i = state.boards.indexOf(d.target); state.boards.splice(d.where === 'before' ? i : i + 1, 0, b); }
+    renderTabs(); save();
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', end); addEventListener('pointercancel', end);
+}
+
+/* homeboard:board/<id>, homeboard:board/<id>/view/<id>, homeboard:board/<id>/card/<id> */
+const BOARD_LINK = /^homeboard:board\/([\w-]+)(?:\/(view|card)\/([\w-]+))?\/?$/;
+function boardLinkName(href) {
+  const m = BOARD_LINK.exec(href || ''), b = m && boardById(m[1]);
+  if (!b) return 'Missing board';
+  const v = m[2] === 'view' ? b.views.find(p => p.id === m[3]) : null, c = m[2] === 'card' ? b.cards.find(k => k.id === m[3]) : null;
+  return b.name + (v ? ' › ' + v.name : c ? ' › ' + c.title : '');
+}
+function followBoardLink(href) {
+  const m = BOARD_LINK.exec(href || '');
+  if (!m) return false;
+  const b = boardById(m[1]);
+  if (!b) { toast('That board is not there any more.'); return true; }
+  collapseCard();
+  if (b.id !== state.active) openBoard(b);
+  if (m[2] === 'view') {
+    const p = b.views.find(v => v.id === m[3]);
+    if (p) goTo(viewOf(p)); else { toast('That view was deleted; here is the board.'); goHome(); }
+  } else if (m[2] === 'card') {
+    const c = b.cards.find(k => k.id === m[3]);
+    if (!c) { toast('That card is not on the board any more.'); return true; }
+    const z = clamp(Math.min((innerWidth - 160) / c.w, (innerHeight - 220) / c.h, 1.2), ZMIN, ZMAX);
+    goTo({ z, x: innerWidth / 2 - (c.x + c.w / 2) * z, y: innerHeight / 2 + 10 - (c.y + c.h / 2) * z });
+    select(c.id);
+    const el = cardEl(c.id);
+    el?.classList.remove('flash'); void el?.offsetWidth; el?.classList.add('flash');
+  } else if (b.id === state.active) goHome();
+  return true;
+}
+function copyBoardLink(href) {
+  const md = `[${boardLinkName(href).replace(/[[\]]/g, '')}](${href})`;
+  navigator.clipboard?.writeText(md).then(() => toast('Link copied. Paste it into a note, or into a Links card, to jump there with a click.'), () => toast(md));
+}
+document.addEventListener('click', e => {             // board links anywhere on the page (notes, link tiles, the side panel)
+  const a = e.target.closest?.('a[href^="homeboard:"]');
+  if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  followBoardLink(a.getAttribute('href'));
+}, true);
 
 function boardMenu(b, x, y) {
   const again = () => { renderTabs(); renderBoard(); save(); };
@@ -2597,6 +3122,7 @@ function boardMenu(b, x, y) {
       { label: 'Same as everywhere', checked: !b.look, action() { b.look = null; applySettings(); syncSettingsUI(); save(); } },
       ...state.looks.map(l => ({ label: l.name, checked: b.look === l.id, action() { b.look = l.id; applySettings(); syncSettingsUI(); save(); } })),
     ] },
+    { label: 'Copy link to this board', icon: 'links', action: () => copyBoardLink(`homeboard:board/${b.id}`) },
     { label: 'Copy board', icon: 'copy', action: () => copyBoard(b) },
     { label: 'Duplicate board', icon: 'copy', action: () => duplicateBoard(b) },
     boardClip && { label: 'Paste board inside', icon: 'plus', action: () => pasteBoards(boardClip, b.id, null) },
@@ -2621,6 +3147,8 @@ function copyBoard(b, quiet) {
 function pasteBoards(pack, parentId, afterId) {
   if (!pack || pack.homeboard !== 'boards' || !Array.isArray(pack.boards) || !pack.boards.some(o => o && o.id === pack.root)) return false;
   const ids = new Map(pack.boards.map(o => [o.id, uid()]));
+  const groups = new Map();                           // linked notes inside the pasted boards stay linked to each other only
+  for (const o of pack.boards) for (const c of (Array.isArray(o.cards) ? o.cards : [])) if (c && c.sync) { if (!groups.has(c.sync)) groups.set(c.sync, uid()); c.sync = groups.get(c.sync); }
   const out = pack.boards.map(o => {
     const n = structuredClone(o), cards = new Map(), views = new Map();
     n.id = ids.get(o.id);
@@ -2724,6 +3252,13 @@ function wire() {
   $('#undo-update').addEventListener('click', undoUpdate);
   document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.add === 'media') pickMedia();
+    else if (b.dataset.add === 'apps') {
+      const r = b.getBoundingClientRect();
+      openMenu(r.left, r.top - 8 - 92, [
+        { label: 'App launcher', icon: 'apps', action: () => addCard('apps') },
+        { label: 'Workspace (apps placed on the screen)', icon: 'space', action: () => addCard('space') },
+      ]);
+    }
     else if (b.dataset.add === 'widget') { const r = b.getBoundingClientRect(); openMenu(r.left, r.top - 8 - 40 * Object.keys(WIDGETS).length, widgetMenu()); }
     else addCard(b.dataset.add);
   }));
@@ -2905,6 +3440,7 @@ function wire() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (!menu.hidden) closeMenu();
+      else if (expanded && !isEditable(e.target)) collapseCard();
       else if (!panel.hidden) panel.hidden = true;
       else { document.activeElement?.blur?.(); select(null); }
       return;
@@ -2923,6 +3459,14 @@ function wire() {
       if (c) removeCard(c);
     } else if (e.key === '/') { e.preventDefault(); searchInput.focus(); }
     else if (e.key === 'Home') { e.preventDefault(); goHome(); }
+    else if ((e.key === 'f' || e.key === 'F') && selected) { const c = board().cards.find(k => k.id === selected); if (c) { e.preventDefault(); toggleExpand(c); } }
+    else if (/^Arrow/.test(e.key) && !selected) {
+      e.preventDefault();
+      const d = e.shiftKey ? 400 : 120;
+      ease.pan(e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0, e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0);
+    }
+    else if ((e.key === '+' || e.key === '=') && !e.ctrlKey) { e.preventDefault(); zoomStep(1); }
+    else if (e.key === '-' && !e.ctrlKey) { e.preventDefault(); zoomStep(-1); }
     else if (/^Digit[1-9]$/.test(e.code) && !e.shiftKey) { const p = board().views[+e.code.slice(5) - 1]; if (p) { e.preventDefault(); goTo(viewOf(p)); } }
   });
 

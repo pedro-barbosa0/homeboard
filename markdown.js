@@ -14,6 +14,7 @@ const safeUrl = (u, image) => {
   try { url = base ? new URL(raw, base) : new URL(raw); } catch { return null; }
   const fromFile = base && base.startsWith('file:');
   if (/^(https?|mailto):$/i.test(url.protocol) || (url.protocol === 'file:' && fromFile)) return esc(url.href);
+  if (!image && url.protocol === 'homeboard:' && /^homeboard:board\/[\w-]+(\/(view|card)\/[\w-]+)?\/?$/.test(raw)) return esc(raw);   // a board, view or card of Homeboard
   return null;
 };
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
@@ -23,7 +24,7 @@ function inline(text) {
   const keep = [];
   const stash = html => `\u0000${keep.push(html) - 1}\u0000`;
   let s = text.replace(/`([^`\n]+)`/g, (m, c) => stash(`<code>${esc(c)}</code>`));
-  const target = u => (/^file:/i.test(u) ? '' : ' target="_blank" rel="noopener noreferrer"');
+  const target = u => (/^(file|homeboard):/i.test(u) ? '' : ' target="_blank" rel="noopener noreferrer"');
   // Obsidian: ![[picture.png]] embeds, [[Other note]] links (to "Other note.md" beside this file)
   s = s.replace(/!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]/g, (m, name) => {
     const u = base && safeUrl(encodeURI(name.trim()), true);
