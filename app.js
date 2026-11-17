@@ -339,6 +339,12 @@ function normalize(s) {
       }));
       if (c.type === 'links') c.links = list(c.links).map(l => ({ id: String(l.id || uid()), title: String(l.title || ''), url: toAddress(String(l.url || '')), how: l.how === 'explorer' ? 'explorer' : 'tab' })).filter(l => l.url);
       if (c.type === 'files') { const p = toAddress(String(c.path || '')); c.path = p && isLocal(p) ? p.replace(/\/?$/, '/') : ''; }
+      if (c.type === 'web') {
+        const l = c.last;
+        if (l && typeof l === 'object' && /^https?:/i.test(String(l.url || ''))) c.last = { url: String(l.url).slice(0, 2000), path: /^[\d.]{0,200}$/.test(l.path || '') ? l.path || '' : '', x: Math.max(0, +l.x || 0), y: Math.max(0, +l.y || 0) };
+        else delete c.last;
+        c.forget = !!c.forget;
+      }
       if (c.type === 'web') { c.url = toAddress(String(c.url || '')) || ''; c.plain = !!c.plain; c.own = !!c.own; if (typeof c.noScroll !== 'boolean') delete c.noScroll; }
       if (c.type === 'apps') c.apps = list(c.apps).map(appItem).filter(Boolean);
       if (c.type === 'space') c.items = list(c.items).map(appItem).filter(Boolean).slice(0, 40);
@@ -1096,7 +1102,7 @@ function setTextSize(c, z) {
   const el = cardEl(c.id);
   if (el) place(el, c);
   save();
-  toast(`Text ${Math.round(cardZoom(c) * 100)}%`);
+  hud(`${c.type === 'web' ? 'Zoom' : 'Text'} ${Math.round(cardZoom(c) * 100)}%`);
 }
 function place(el, c) {
   if (ZOOMABLE.has(c.type)) el.style.setProperty('--cz', cardZoom(c));
@@ -1514,19 +1520,21 @@ function cardItems(c) {
       delete c.lock; opened.delete(c.id); refreshCard(c); save();
     } },
     { label: expanded && expanded.c.id === c.id ? 'Back to the board' : 'Expand', icon: 'expand', action: () => toggleExpand(c) },
-    ZOOMABLE.has(c.type) && { label: `Text size · ${Math.round(cardZoom(c) * 100)}%`, icon: 'expand', items: [
-      { label: 'Bigger', icon: 'plus', action: () => setTextSize(c, (c.zoom || 1) * 1.15) },
-      { label: 'Smaller', icon: 'minus', action: () => setTextSize(c, (c.zoom || 1) / 1.15) },
-      { label: 'Normal size', icon: 'reload', action() { delete c.grow; setTextSize(c, 1); } },
+    ZOOMABLE.has(c.type) && { label: `${c.type === 'web' ? 'Zoom' : 'Text size'} · ${Math.round(cardZoom(c) * 100)}%`, icon: 'expand', items: [
+      { label: c.type === 'web' ? 'Zoom in' : 'Bigger', icon: 'plus', action: () => setTextSize(c, (c.zoom || 1) * (c.type === 'web' ? 1.1 : 1.15)) },
+      { label: c.type === 'web' ? 'Zoom out' : 'Smaller', icon: 'minus', action: () => setTextSize(c, (c.zoom || 1) / (c.type === 'web' ? 1.1 : 1.15)) },
+      { label: c.type === 'web' ? 'Actual size (100%)' : 'Normal size', icon: 'reload', action() { delete c.grow; setTextSize(c, 1); } },
+      ...(c.type === 'web' ? [50, 67, 80, 90, 110, 125, 150, 175, 200].map(p => ({ label: p + '%', checked: Math.round(cardZoom(c) * 100) === p, action() { delete c.grow; setTextSize(c, p / 100); } })) : []),
       { label: 'Grows with the card', checked: !!c.grow, action() {
         if (c.grow) { c.zoom = cardZoom(c); delete c.grow; } else c.grow = c.w;    // keep today's size either way
         setTextSize(c, c.zoom || 1);
       } },
-      { info: 'Or hold Ctrl and scroll over the selected card.' },
+      { info: c.type === 'web' ? 'Or, inside the site: Ctrl + scroll, pinch, Ctrl + plus / minus, Ctrl + 0.' : 'Or hold Ctrl and scroll over the selected card.' },
     ] },
     c.type === 'links' && { label: 'One click shows a preview (two clicks open)', checked: !c.direct, action() { c.direct = !c.direct; save(); } },
     c.type === 'web' && { label: 'Show only the website (no frame)', checked: !!c.plain, action() { c.plain = !c.plain; refreshCard(c); save(); } },
     c.type === 'web' && { label: 'Hide the scroll bars', checked: hidesBars(c), action() { c.noScroll = !hidesBars(c); refreshCard(c); save(); } },
+    c.type === 'web' && { label: 'Come back where I left it (page and scroll)', checked: !c.forget, action() { c.forget = !c.forget; if (c.forget) delete c.last; save(); } },
     c.type === 'web' && { label: 'Always open in its own window', checked: !!c.own, action() { c.own = !c.own; refreshCard(c); save(); } },
     !bare && { label: 'Rename', icon: 'edit', action: () => renameCard(c) },
     { label: 'Copy link to this card', icon: 'links', action: () => copyBoardLink(`homeboard:board/${state.active}/card/${c.id}`) },
@@ -2688,6 +2696,7 @@ function buildWeb(c, body) {
   });
   const show = u => {
     c.url = u;
+    delete c.last;                                      // a new address starts at its top
     url.value = addressLabel(u);
     url.classList.remove('bad');
     if (!c.named) {
@@ -2759,7 +2768,7 @@ function buildWeb(c, body) {
     const trusted = isLocal(c.url) || pdf;
     frame.replaceChildren(
       h('iframe', {
-        src: embedUrl(c.url), title: c.title, loading: 'lazy', name: `hb:${c.id}${hidesBars(c) ? ':noscroll' : ''}`,
+        src: embedUrl(!c.forget && c.last && c.last.url ? c.last.url : c.url), title: c.title, loading: 'lazy', name: `hb:${c.id}${hidesBars(c) ? ':noscroll' : ''}`,
         // Everything a tab may do, except replace this page.
         sandbox: !trusted && 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation allow-pointer-lock allow-orientation-lock allow-storage-access-by-user-activation',
         allow: 'fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-read; clipboard-write; camera; microphone; display-capture; geolocation; web-share; storage-access; screen-wake-lock',
@@ -2827,7 +2836,7 @@ function buildWeb(c, body) {
 
   body.append(h('div', { class: 'web-bar' }, url,
     !embedUnblocked && h('button', { class: 'icon-btn', type: 'button', title: EMBED_HINT, 'aria-label': 'About blank windows', onclick: () => toast(EMBED_HINT) }, icon('info')),
-    h('button', { class: 'icon-btn', type: 'button', title: 'Reload (back to this address)', 'aria-label': 'Reload', onclick: load }, icon('reload')),
+    h('button', { class: 'icon-btn', type: 'button', title: 'Back to this address, at its top (the window otherwise comes back where you left it)', 'aria-label': 'Back to this address', onclick() { delete c.last; saveView(); load(); } }, icon('reload')),
     h('button', { class: 'icon-btn', type: 'button', title: 'Open in its own window, beside the board (for sites that refuse to show here)', 'aria-label': 'Open in its own window',
       onclick: () => openBeside(c.url, frame) }, icon('popout')),
     h('button', { class: 'icon-btn', type: 'button', title: 'Open in a new tab', 'aria-label': 'Open in a new tab',
@@ -3580,8 +3589,24 @@ function dropUnblock() {
  *  Wiring
  * ------------------------------------------------------------------ */
 function wire() {
-  api?.runtime?.onMessage?.addListener((msg, sender) => {
-    if (msg && msg.homeboard === 'frame' && sender.tab && sender.tab.id === tabId) frameWatch.get(msg.card)?.(msg);
+  api?.runtime?.onMessage?.addListener((msg, sender, reply) => {
+    if (!msg || msg.homeboard !== 'frame' || !sender.tab || sender.tab.id !== tabId) return;
+    const c = board().cards.find(k => k.id === msg.card && k.type === 'web');
+    if (msg.kind === 'zoom') {                        // Ctrl + scroll, pinch or Ctrl + plus / minus / 0 inside the site
+      if (!c) return;
+      const z = c.zoom || 1;
+      setTextSize(c, msg.key === '0' ? 1 : msg.key === '+' ? z * 1.1 : msg.key === '-' ? z / 1.1 : z * Math.exp((+msg.by || 0) * (msg.mouse ? .0015 : .01)));
+      return;
+    }
+    if (msg.kind === 'where') {                       // where you are on the site, for next time
+      if (c && !c.forget && /^https?:/i.test(msg.url || '')) { c.last = { url: String(msg.url).slice(0, 2000), path: typeof msg.path === 'string' ? msg.path.slice(0, 200) : '', x: Math.max(0, +msg.x || 0), y: Math.max(0, +msg.y || 0) }; saveView(); }
+      return;
+    }
+    if (msg.kind === 'ok' && c && !c.forget && /^https?:/i.test(msg.url || '')) {
+      if (c.last && c.last.url === msg.url) { if (c.last.x || c.last.y) reply({ restore: { path: c.last.path || '', x: c.last.x, y: c.last.y } }); }
+      else if (c.last || msg.url !== c.url) { c.last = { url: String(msg.url).slice(0, 2000), path: '', x: 0, y: 0 }; saveView(); }   // you went to another page in it
+    }
+    frameWatch.get(msg.card)?.(msg);
   });
   $('#export-md').addEventListener('click', () => exportNotes(null));
   $('#undo-update').addEventListener('click', undoUpdate);
@@ -3792,6 +3817,11 @@ function wire() {
     if (e.ctrlKey || e.metaKey) {
       const c = selected && board().cards.find(k => k.id === selected), k = e.key.toLowerCase();
       if (c && k === 'd') { e.preventDefault(); duplicateCard(c); }
+      else if (c && ZOOMABLE.has(c.type) && ['=', '+', '-', '_', '0'].includes(e.key)) {   // the selected card's zoom, not the whole page's
+        e.preventDefault();
+        const z = c.zoom || 1, step = c.type === 'web' ? 1.1 : 1.15;
+        if (e.key === '0') { delete c.grow; setTextSize(c, 1); } else setTextSize(c, e.key === '-' || e.key === '_' ? z / step : z * step);
+      }
       else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); stepView(e.key === 'ArrowRight' ? 1 : -1, false); }
       else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); stepView(e.key === 'ArrowDown' ? 1 : -1, true); }
       else if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoStep(); }
