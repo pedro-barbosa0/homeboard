@@ -1,0 +1,22 @@
+/* The page around a .md file opened in Edge (see mdview.js). Light or dark, following Windows. */
+html.hbmd {
+  --text: #1f2328; --muted: #656d76; --accent: #2f6fde; --accent-ink: #fff; --border: rgba(31, 35, 40, .14);
+  --surface: #ffffff; --r-in: 6px; background: #f6f7f9; color: var(--text);
+  font: 16px/1.7 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  html.hbmd { --text: #e6e8ec; --muted: #9aa3b2; --accent: #7aa2ff; --accent-ink: #0b0d12; --border: rgba(255, 255, 255, .12); --surface: #1b1e25; background: #121418; }
+}
+html.hbmd body { margin: 0; }
+.hbmd-page { position: relative; min-height: 100vh; }
+.hbmd-page > .hbfv { position: static; min-height: 100vh; }
+.hbmd-page .hbfv-bar {
+  position: sticky; top: 0; z-index: 2; justify-content: flex-start; padding: 8px max(16px, calc(50vw - 25em));
+  background: color-mix(in srgb, var(--surface) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.hbmd-page .hbfv-view { overflow: visible; }
+.hbmd-page .hbfv-md, .hbmd-page .hbfv-text { max-width: 50em; margin: 0 auto; padding: 28px 24px 80px; box-sizing: border-box; }
+.hbmd-page .hbfv-md h1 { font-size: 1.9em; } .hbmd-page .hbfv-md h2 { font-size: 1.45em; } .hbmd-page .hbfv-md h3 { font-size: 1.2em; }
+.hbmd-page .hbfv-md img { display: block; margin: 1em auto; }
+.hbmd-page .hbfv-text { font-size: 14px; }
+.hbmd-page .hbfv-edit { max-width: 56em; margin: 0 auto; min-height: calc(100vh - 50px); padding: 24px; font-size: 14px; box-sizing: border-box; }

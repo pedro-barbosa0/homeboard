@@ -57,6 +57,7 @@ function precious(p) {
     .filter(Boolean).map(x => x.toLowerCase().replace(/\\+$/, ''));
   return /^[a-z]:$/.test(low) || /^\\\\[^\\]+\\[^\\]+$/.test(low) || guarded.includes(low) || guarded.slice(0, 4).some(g => low.startsWith(g + '\\'));
 }
+const TEXT_EXT = /.(txt|md|markdown|json|js|mjs|cjs|ts|tsx|jsx|css|scss|less|html?|xml|csv|tsv|log|ini|cfg|conf|ya?ml|toml|ps1|bat|cmd|sh|py|rb|java|c|h|cpp|cs|go|rs|php|sql|svg|env|gitignore)$/i;
 const exists = p => fsp.access(p).then(() => true, () => false);
 async function freeName(dir, name) {                 // "report.pdf" -> "report (2).pdf" when taken
   const ext = path.extname(name), stem = name.slice(0, name.length - ext.length);
@@ -101,13 +102,16 @@ foreach ($p in @($env:HB_PATHS | ConvertFrom-Json)) {
 /* ---------- console sessions (PowerShell driven through pipes) ---------- */
 const terms = new Map();
 const MARK = /^<<HB:(.*)>>\r?$/;
-function startTerm(cwd) {
-  if (terms.size >= 8) throw new Error('too many consoles open');
+function startTerm(cwd, key) {
+  // a console card keeps one session, whichever tab shows it: a new tab joins the one already running
+  key = typeof key === 'string' ? key.slice(0, 80) : '';
+  if (key) for (const t of terms.values()) if (t.key === key) return { id: t.id, joined: true };
+  if (terms.size >= 12) throw new Error('Too many consoles are running. Close some console cards; unused ones stop by themselves after a few minutes.');
   let dir = os.homedir();
   try { const c = clean(cwd); if (fs.statSync(c).isDirectory()) dir = c; } catch { /* fall back to the home folder */ }
   const id = crypto.randomBytes(8).toString('hex');
   const proc = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NoExit', '-Command', '-'], { cwd: dir, windowsHide: true });
-  const t = { id, proc, log: [], readers: new Set(), part: { o: '', e: '' }, timer: { o: 0, e: 0 }, idle: Date.now() };
+  const t = { id, key, proc, log: [], readers: new Set(), part: { o: '', e: '' }, timer: { o: 0, e: 0 }, idle: Date.now() };
   const emit = msg => {
     t.log.push(msg);
     if (t.log.length > 4000) t.log.splice(0, 1000);
@@ -136,7 +140,7 @@ function startTerm(cwd) {
 }
 function stopTerm(t) { try { spawn('taskkill', ['/PID', String(t.proc.pid), '/T', '/F'], { windowsHide: true }); } catch { /* already gone */ } }
 setInterval(() => {                                   // a console nobody is looking at any more is closed
-  for (const t of terms.values()) { if (t.readers.size) t.idle = Date.now(); else if (Date.now() - t.idle > 90000) stopTerm(t); }
+  for (const t of terms.values()) { if (t.readers.size) t.idle = Date.now(); else if (Date.now() - t.idle > 300000) stopTerm(t); }
 }, 15000).unref();
 
 /* ---------- requests ---------- */
@@ -152,6 +156,32 @@ const routes = {
     if (dest.toLowerCase() !== src.toLowerCase() && await exists(dest)) throw new Error('there is already something with that name');
     await fsp.rename(src, dest);
     return { done: [dest] };
+  },
+  /* Text files, for editing: read with what is needed to write them back the same way (line endings, BOM),
+     and refuse to write if the file changed since it was read, unless asked to. Only existing text files. */
+  '/fs/read': async b => {
+    const p = clean(b.path), st = await fsp.stat(p);
+    if (!st.isFile()) throw new Error('that is not a file');
+    if (st.size > 5e6) throw new Error('that file is too big to edit here');
+    let buf = await fsp.readFile(p);
+    const bom = buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+    if (bom) buf = buf.subarray(3);
+    const text = buf.toString('utf8');
+    return { text: text.replace(/\r\n/g, '\n'), mtime: st.mtimeMs, eol: /\r\n/.test(text) ? '\r\n' : '\n', bom };
+  },
+  '/fs/write': async b => {
+    const p = clean(b.path);
+    if (precious(p)) throw new Error('that place is protected');
+    if (!TEXT_EXT.test(p)) throw new Error('only text files can be saved from Homeboard');
+    if (typeof b.text !== 'string' || b.text.length > 5e6) throw new Error('nothing to save');
+    const st = await fsp.stat(p);
+    if (!st.isFile()) throw new Error('that is not a file');
+    if (b.mtime != null && Math.abs(st.mtimeMs - +b.mtime) > 1) throw Object.assign(new Error('the file changed since it was opened'), { code: 'changed' });
+    const body = (b.bom ? '﻿' : '') + (b.eol === '\r\n' ? b.text.replace(/\r?\n/g, '\r\n') : b.text);
+    const tmp = p + '.homeboard-saving';
+    await fsp.writeFile(tmp, body, 'utf8');
+    await fsp.rename(tmp, p);                         // whole file at once: never half-written
+    return { mtime: (await fsp.stat(p)).mtimeMs };
   },
   '/fs/mkdir': async b => { const dest = await freeName(clean(b.dir), 'New folder'); await fsp.mkdir(dest); return { done: [dest] }; },
   '/fs/trash': async b => {
@@ -181,7 +211,7 @@ const routes = {
     for (const n of old) await fsp.rm(path.join(backups, n), { force: true });
     return { file };
   },
-  '/term/start': async b => startTerm(b.cwd),
+  '/term/start': async b => startTerm(b.cwd, b.key),
   '/term/write': async b => {
     const t = terms.get(b.id);
     if (!t) throw new Error('that console has ended');
@@ -221,7 +251,7 @@ const server = http.createServer((req, res) => {
     try {
       const body = parts.length ? JSON.parse(Buffer.concat(parts).toString('utf8')) : {};
       send(200, await route(body || {}));
-    } catch (e) { send(400, { error: String(e && e.message || e).replace(/^E[A-Z]+: /, '') }); }
+    } catch (e) { send(e && e.code === 'changed' ? 409 : 400, { error: String(e && e.message || e).replace(/^E[A-Z]+: /, ''), code: e && e.code === 'changed' ? 'changed' : undefined }); }
   });
 });
 server.on('error', e => { console.error(e.code === 'EADDRINUSE' ? 'The Homeboard helper is already running.' : e.message); process.exit(e.code === 'EADDRINUSE' ? 0 : 1); });

@@ -120,6 +120,8 @@ until you point at it, or until you click it. Notes also have "Lock with a
 password…": the text is then saved encrypted and asks for the password each
 time the board is opened. A forgotten password cannot be recovered.
 
+**Markdown files in Edge** — open any `.md` file in Edge (e.g. `file:///C:/…/notes.md`) and it shows formatted, with its pictures and `[[links]]`, and a bar to switch to **Text** or **Edit**; saving needs the helper and only ever writes the file shown in that tab. (Edge must have “Allow access to file URLs” switched on for Homeboard.)
+
 **Notes are Markdown.** Write `# heading`, `**bold**`, `*italic*`, `- list`, `- [ ] task`, `[link](https://…)`, tables and code; leaving the note shows it formatted, a click opens the text again, and ticking a task box in the formatted view ticks it in the text. Enter carries a list on (an empty item ends it), Tab / Shift+Tab indent. Older notes: right-click → **Markdown** converts them. Drop `.md` or `.txt` files on the board to make notes of them; the file browser shows `.md` files formatted.
 
 **Export** — right-click a note or to-do list → **Export as Markdown (.md)**; right-click a board → **Export notes as Markdown (.zip)** (that board and the boards inside it); Customize → Your data → **Export notes as Markdown** (everything). The zip has a folder per board; strings between cards become `[[links]]` as in Obsidian. Locked notes are never exported in bulk.
@@ -132,12 +134,12 @@ link to open later, a due date and a star.
 **Links** — an address can be a website or a folder/file on this computer; for
 those you choose "Open in a browser tab" or "Open in File Explorer".
 
-**Website windows** — right-click its top edge → **Show only the website (no frame)** hides the title and address bar: drag the site to move it until you click into it, then the thin strip along its top edge moves it and opens the menu. The window button opens a site in its own window beside the board, for sites that will not show inside it. Type an address, a `.pdf` link, a folder such as
+**Website windows** — they get what a normal tab gets (downloads, dialogs, casting, camera and microphone when the site asks), except replacing the board. If a site does not show within a few seconds, the window offers to open it **in its own window**: a real Edge window placed over the card, where every site works; **Always** keeps that choice for the window (also in its right-click menu, **Always open in its own window**). When a site sends you to a sign-in page that refuses to be inside another page (Google, Microsoft, Apple), the window offers **Sign in** in a real window and reloads when you close it. Right-click its top edge → **Show only the website (no frame)** hides the title and address bar, and the site’s own scroll bars (scroll with the wheel or touchpad; **Hide the scroll bars** turns this on or off for any website window): drag the site to move it until you click into it, then the thin strip along its top edge moves it and opens the menu. The window button opens a site in its own window beside the board, for sites that will not show inside it. Type an address, a `.pdf` link, a folder such as
 `C:\Users\you\Downloads\`, or just words to search. An empty window offers
 Google, Wikipedia, YouTube, YouTube Music, Bing, DuckDuckGo and Maps: click one
 to open it, or type first and click to search that site.
 
-**File browser** — each file carries a coloured mark for its type. Type a folder path; click a file for a preview at the side
+**File browser** — each file carries a coloured mark for its type. Text files (`.md`, `.txt`, `.css`, `.json`, code…) preview with **Formatted** (Markdown) / **Text** / **Edit**: edits are kept while switching views, **Save** (or Ctrl+S) writes the file through the helper, keeping its line endings, and asks first if the file was changed elsewhere meanwhile. Markdown shows pictures from the same folder (paths with spaces too), from the web, and Obsidian `![[picture.png]]`; `[[Note]]` links open the note beside it. Type a folder path; click a file for a preview at the side
 (pictures, video, audio, PDF, text), the ⤢ button for a big preview, double-click
 to open it in a tab.
 
@@ -202,6 +204,9 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | File | What it is |
 | --- | --- |
 | `index.html`, `style.css`, `app.js` | The board: cards, boards, menus, themes, storage |
+| `fileview.js`, `fileview.css` | A text or Markdown file with Formatted / Text / Edit and Save, used by the file browser and the Edge viewer |
+| `mdview.js`, `mdview.css` | Shows `.md` files opened in Edge formatted (runs only on local `.md` files) |
+| `frame.js`, `noscroll.css` | Runs inside Homeboard website windows only: tells the board a site loaded or went to a sign-in page, and hides the site’s scroll bars when asked |
 | `markdown.js` | Markdown rendering, HTML-to-Markdown, and the zip writer for exports |
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
 | `widgets-more.js`, `widgets-more.css` | Clock, 2048, Minesweeper, Sudoku, sliding puzzle, sound visualiser, YouTube Music styles |
@@ -214,6 +219,8 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/webtest.js` | Checks website windows: permissions, the not-showing notice, the Google sign-in hand-off, own windows |
+| `dev/filestest.js` | Checks the Edge Markdown viewer, editing and saving files, and hidden scroll bars (needs the helper running) |
 | `dev/boardstest.js` | Checks undo/redo and copying, pasting and duplicating boards |
 | `dev/musictest.js` | Checks the YouTube Music widget against the real site (needs the internet; skips steps the test browser cannot play) |
 | `dev/notestest.js` | Checks Markdown notes, export, dropped .md files, saved views and frameless website windows |

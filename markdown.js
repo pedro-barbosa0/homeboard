@@ -5,19 +5,40 @@
 'use strict';
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/* The address of the file being shown, so "images/x.png" or "../notes.md" can be found; null for board notes. */
+let base = null;
 const safeUrl = (u, image) => {
-  const raw = u.replace(/&amp;/g, '&');
-  if (/^(https?:|mailto:)/i.test(raw) || (image && /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(raw))) return esc(raw);
+  const raw = u.trim().replace(/^<(.*)>$/, '$1').replace(/&amp;/g, '&');
+  if (image && /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(raw)) return esc(raw);
+  let url;
+  try { url = base ? new URL(raw, base) : new URL(raw); } catch { return null; }
+  const fromFile = base && base.startsWith('file:');
+  if (/^(https?|mailto):$/i.test(url.protocol) || (url.protocol === 'file:' && fromFile)) return esc(url.href);
   return null;
 };
+const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
 
 /* ---------- inline: code, images, links, bold, italic, strike, highlight ---------- */
 function inline(text) {
   const keep = [];
   const stash = html => `\u0000${keep.push(html) - 1}\u0000`;
   let s = text.replace(/`([^`\n]+)`/g, (m, c) => stash(`<code>${esc(c)}</code>`));
-  s = s.replace(/!\[([^\]\n]*)\]\(([^)\s]+)\)/g, (m, alt, url) => { const u = safeUrl(url, true); return u ? stash(`<img src="${u}" alt="${esc(alt)}">`) : m; });
-  s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (m, t, url) => { const u = safeUrl(url); return u ? stash(`<a href="${u}" target="_blank" rel="noopener noreferrer">${emphasis(esc(t))}</a>`) : m; });
+  const target = u => (/^file:/i.test(u) ? '' : ' target="_blank" rel="noopener noreferrer"');
+  // Obsidian: ![[picture.png]] embeds, [[Other note]] links (to "Other note.md" beside this file)
+  s = s.replace(/!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]/g, (m, name) => {
+    const u = base && safeUrl(encodeURI(name.trim()), true);
+    return u && IMAGE.test(name.trim()) ? stash(`<img src="${u}" alt="${esc(name.trim())}">`) : stash(`<span class="wikilink">${esc(name.trim())}</span>`);
+  });
+  s = s.replace(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g, (m, name, alias) => {
+    const label = esc((alias || name).trim()), file = name.trim().replace(/#.*$/, '');
+    const u = base && file && safeUrl(encodeURI(/\.[a-z0-9]{1,6}$/i.test(file) ? file : file + '.md'));
+    return stash(u ? `<a class="wikilink" href="${u}"${target(u)}>${label}</a>` : `<span class="wikilink">${label}</span>`);
+  });
+  const LINK = '(<[^>\\n]+>|[^)\\s]+)(?:\\s+"[^"\\n]*")?';
+  s = s.replace(new RegExp(`!\\[([^\\]\\n]*)\\]\\(${LINK}\\)`, 'g'), (m, alt, url) => { const u = safeUrl(url, true); return u ? stash(`<img src="${u}" alt="${esc(alt)}">`) : m; });
+  // forgiving: picture paths with plain spaces, as many exports write them
+  s = s.replace(/!\[([^\]\n]*)\]\(([^)\n<>]+?\.(?:png|jpe?g|gif|webp|avif|bmp|svg))\)/gi, (m, alt, url) => { const u = safeUrl(url, true); return u ? stash(`<img src="${u}" alt="${esc(alt)}">`) : m; });
+  s = s.replace(new RegExp(`\\[([^\\]\\n]+)\\]\\(${LINK}\\)`, 'g'), (m, t, url) => { const u = safeUrl(url); return u ? stash(`<a href="${u}"${target(u)}>${emphasis(esc(t))}</a>`) : m; });
   s = s.replace(/(^|[\s(])(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g, (m, pre, url) => pre + stash(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`));
   s = emphasis(esc(s));
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => keep[+i]);
@@ -96,8 +117,10 @@ function list(lines, i) {
   }
   return { html: html + (ordered ? '</ol>' : '</ul>'), next: i };
 }
-function render(src) {
-  return blocks(String(src || '').replace(/\r/g, '').split('\n').map((t, n) => ({ t, n })));
+function render(src, opts) {
+  base = (opts && opts.base) || null;
+  try { return blocks(String(src || '').replace(/\r/g, '').split('\n').map((t, n) => ({ t, n }))); }
+  finally { base = null; }
 }
 
 /* tick a "- [ ]" box in the source */

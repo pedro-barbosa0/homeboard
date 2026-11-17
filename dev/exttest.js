@@ -439,7 +439,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     await ev(m.sid, `[...document.querySelectorAll('.card-files .files-row')].find(r => r.dataset.name === 'wallpaper.jpg').click()`);
     const seen = await waitFor(m.sid, `document.querySelector('.card-files .files-stage img')?.naturalWidth > 100`);
     await ev(m.sid, `[...document.querySelectorAll('.card-files .files-row')].find(r => r.dataset.name === 'manifest.json').click()`);
-    const read = await waitFor(m.sid, `(document.querySelector('.card-files .files-text')?.textContent || '').includes('manifest_version')`);
+    const read = await waitFor(m.sid, `(document.querySelector('.card-files .hbfv-text')?.textContent || '').includes('manifest_version')`);
     await ev(m.sid, `[...document.querySelectorAll('.card-files .files-row')].find(r => r.dataset.name === 'dev').click()`);
     const inside = await waitFor(m.sid, `!!document.querySelector('.card-files .files-row[data-name="exttest.js"]')`);
     await sleep(500);

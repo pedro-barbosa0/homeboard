@@ -310,7 +310,7 @@ function normalize(s) {
       }));
       if (c.type === 'links') c.links = list(c.links).map(l => ({ id: String(l.id || uid()), title: String(l.title || ''), url: toAddress(String(l.url || '')), how: l.how === 'explorer' ? 'explorer' : 'tab' })).filter(l => l.url);
       if (c.type === 'files') { const p = toAddress(String(c.path || '')); c.path = p && isLocal(p) ? p.replace(/\/?$/, '/') : ''; }
-      if (c.type === 'web') { c.url = toAddress(String(c.url || '')) || ''; c.plain = !!c.plain; }
+      if (c.type === 'web') { c.url = toAddress(String(c.url || '')) || ''; c.plain = !!c.plain; c.own = !!c.own; if (typeof c.noScroll !== 'boolean') delete c.noScroll; }
       if (c.type === 'term') c.cwd = typeof c.cwd === 'string' ? c.cwd.slice(0, 400) : '';
       if (c.type === 'media') {
         c.kind = ['image', 'video', 'pdf'].includes(c.kind) ? c.kind : 'image';
@@ -1127,6 +1127,8 @@ function cardItems(c) {
       delete c.lock; opened.delete(c.id); refreshCard(c); save();
     } },
     c.type === 'web' && { label: 'Show only the website (no frame)', checked: !!c.plain, action() { c.plain = !c.plain; refreshCard(c); save(); } },
+    c.type === 'web' && { label: 'Hide the scroll bars', checked: hidesBars(c), action() { c.noScroll = !hidesBars(c); refreshCard(c); save(); } },
+    c.type === 'web' && { label: 'Always open in its own window', checked: !!c.own, action() { c.own = !c.own; refreshCard(c); save(); } },
     !bare && { label: 'Rename', icon: 'edit', action: () => renameCard(c) },
     { label: 'Duplicate', icon: 'copy', action: () => duplicateCard(c) },
     ...others.map(b => ({
@@ -1604,7 +1606,7 @@ const helper = {
     try { r = await fetch(this.base + what, { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
     catch { this.up = false; throw new Error(helperHint()); }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'The helper could not do that.');
+    if (!r.ok) throw Object.assign(new Error(j.error || 'The helper could not do that.'), { code: j.code });
     return j;
   },
   async ready(force) {
@@ -1728,16 +1730,24 @@ function buildFiles(c, body) {
   const urlOf = async row => { if (row.url) return row.url; const u = URL.createObjectURL(await row.handle.getFile()); made.push(u); return u; };
   const textOf = async row => {
     if (!row.url) return (await row.handle.getFile()).slice(0, 200000).text();
-    return new Promise((res, rej) => { const x = new XMLHttpRequest(); x.open('GET', row.url); x.onload = () => res(x.responseText.slice(0, 200000)); x.onerror = rej; x.send(); });
+    return new Promise((res, rej) => { const x = new XMLHttpRequest(); x.open('GET', row.url); x.onload = () => res(x.responseText.slice(0, 5000000)); x.onerror = rej; x.send(); });
   };
+  let textMode = null;                               // the last view chosen for text files in this card
+  function textView(row) {
+    const host = h('div', { class: 'files-doc' }), editable = direct && !!row.url, path = editable && pathOf(row.url);
+    globalThis.HomeboardFileView.mount(host, {
+      isMd: /\.(md|markdown)$/i.test(row.name), base: row.url || null, mode: textMode,
+      load: async () => ({ text: await textOf(row) }),
+      open: editable ? async () => { if (!(await helper.ready(true))) throw new Error(helperHint()); return helper.call('/fs/read', { path }); } : null,
+      save: editable ? d => helper.call('/fs/write', { path, ...d }) : null,
+      onMode: m => { if (m !== 'edit') textMode = m; },
+      onLink: href => { if (/^file:/i.test(href)) { openExternal(href); return true; } return false; },
+    });
+    return host;
+  }
   async function viewer(row, big) {
     const kind = fileKind(row.name);
-    if (kind === 'text' && /\.(md|markdown)$/i.test(row.name)) {
-      const md = h('div', { class: 'md-view files-md' });
-      md.innerHTML = MD.render(await textOf(row).catch(() => 'This file could not be read.'));
-      return md;
-    }
-    if (kind === 'text') return h('pre', { class: 'files-text' }, await textOf(row).catch(() => 'This file could not be read.'));
+    if (kind === 'text') return textView(row);
     const url = await urlOf(row);
     if (kind === 'image') return h('img', { src: url, alt: row.name, draggable: 'false' });
     if (kind === 'video') return h('video', { src: url, controls: true, autoplay: big || null });
@@ -1929,7 +1939,7 @@ function buildTerm(c, body, head, more) {
         h('button', { class: 'btn', type: 'button', onclick: start }, 'Try again')));
       return;
     }
-    try { id = (await helper.call('/term/start', { cwd: c.cwd })).id; } catch (e) { print(e.message + '\n', 'err'); return; }
+    try { id = (await helper.call('/term/start', { cwd: c.cwd, key: c.id })).id; } catch (e) { print(e.message + '\n', 'err'); return; }
     abort = new AbortController();
     try {
       const res = await fetch(`${helper.base}/term/stream?id=${id}`, { method: 'POST', headers: { Authorization: 'Bearer ' + helper.token }, signal: abort.signal });
@@ -1980,14 +1990,42 @@ function buildTerm(c, body, head, more) {
 /* ---- website window ---- */
 const whenOnline = new Set();                        // website windows waiting for the connection to return
 const EMBED_HINT = 'If this window stays blank, the site refuses to be shown inside other pages. The window button opens it in its own window beside the board. (The installed Homeboard shows most of these sites right here.)';
-/* A site that will not sit inside the board: give it a real browser window, placed where the card is. */
-function openBeside(url, el) {
-  if (!url) return;
+/* Scroll bars of the site itself (noscroll.js does it inside the frame); frameless windows hide them unless told not to. */
+const hidesBars = c => (typeof c.noScroll === 'boolean' ? c.noScroll : !!c.plain);
+/* A site that will not sit inside the board: give it a real browser window, placed where the card is.
+   A real window always works (sign-ins, mail, video), because the site is not inside another page. */
+async function openBeside(url, el) {
+  if (!url) return null;
   const r = el.getBoundingClientRect(), chromeTop = Math.max(0, outerHeight - innerHeight), side = Math.max(0, (outerWidth - innerWidth) / 2);
   const box = { left: Math.round(screenX + side + r.left), top: Math.round(screenY + chromeTop + r.top), width: Math.max(420, Math.round(r.width)), height: Math.max(320, Math.round(r.height)) };
-  if (api?.windows?.create) api.windows.create({ url, type: 'popup', ...box }).catch(() => openExternal(url));
-  else if (!window.open(url, 'hb-' + hostOf(url), `popup,left=${box.left},top=${box.top},width=${box.width},height=${box.height}`)) openExternal(url);
+  // keep it on the screen (a card can be partly off it), or Edge refuses the window
+  const sx = screen.availLeft || 0, sy = screen.availTop || 0, sw = screen.availWidth || 1280, sh = screen.availHeight || 800;
+  box.width = Math.min(box.width, sw); box.height = Math.min(box.height, sh);
+  box.left = clamp(box.left, sx, sx + sw - box.width); box.top = clamp(box.top, sy, sy + sh - box.height);
+  if (api?.windows?.create) {
+    for (const where of [box, { width: box.width, height: box.height }]) {
+      try { return (await api.windows.create({ url, type: 'popup', ...where })).id; } catch { /* try the next placement */ }
+    }
+    openExternal(url);
+    return null;
+  }
+  if (!window.open(url, 'hb-' + hostOf(url), `popup,left=${box.left},top=${box.top},width=${box.width},height=${box.height}`)) openExternal(url);
+  return null;
 }
+const ownWindows = new Map();                        // card id -> its own window
+const windowGone = new Map();                        // window id -> what to do when it closes
+api?.windows?.onRemoved?.addListener(id => { const f = windowGone.get(id); windowGone.delete(id); if (f) f(); });
+async function openOwnWindow(c, el, onClose) {
+  const known = ownWindows.get(c.id);
+  if (known != null) { try { await api.windows.update(known, { focused: true }); return; } catch { ownWindows.delete(c.id); } }
+  const id = await openBeside(c.url, el);
+  if (id == null) return;
+  ownWindows.set(c.id, id);
+  windowGone.set(id, () => { ownWindows.delete(c.id); onClose?.(); });
+  onClose?.();
+}
+/* The board hears from each website window (frame.js): it loaded, or it went to a sign-in page. */
+const frameWatch = new Map();
 const localHint = () => (api?.extension?.isAllowedFileSchemeAccess
   ? 'To show folders and files from this computer, open the browser’s Extensions page, choose Details on Homeboard, switch on “Allow access to file URLs”, then reload this page.'
   : 'Folders and files from this computer can only be shown when Homeboard is installed as the browser extension, or opened directly as a file.');
@@ -2056,20 +2094,62 @@ function buildWeb(c, body) {
       x.send();
       return;
     }
+    if (c.own && !isLocal(c.url)) {                 // this site lives in its own window
+      frame.classList.add('empty');
+      const open = ownWindows.has(c.id);
+      const fav = h('img', { class: 'web-own-icon', alt: '', referrerpolicy: 'no-referrer', src: (() => { try { return new URL(c.url).origin + '/favicon.ico'; } catch { return ''; } })() });
+      fav.addEventListener('error', () => fav.remove());
+      frame.replaceChildren(h('div', { class: 'web-empty web-own' }, fav, h('b', null, titleOf(c.url)),
+        h('p', { class: 'hint' }, open ? 'Open in its own window.' : 'Opens in its own window, so everything on the site works.'),
+        h('button', { class: 'btn primary', type: 'button', onclick: () => openOwnWindow(c, frame, load) }, open ? 'Bring it to the front' : 'Open')));
+      return;
+    }
     // PDFs and local files need the browser's own viewer, which a sandboxed frame is not given.
     let pdf = false;
     try { pdf = /\.pdf$/i.test(new URL(c.url).pathname); } catch { /* not a URL */ }
     const trusted = isLocal(c.url) || pdf;
     frame.replaceChildren(
       h('iframe', {
-        src: embedUrl(c.url), title: c.title, loading: 'lazy',
-        // No top-navigation: an embedded site cannot replace this page.
-        sandbox: !trusted && 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox',
-        allow: 'fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-write',
+        src: embedUrl(c.url), title: c.title, loading: 'lazy', name: `hb:${c.id}${hidesBars(c) ? ':noscroll' : ''}`,
+        // Everything a tab may do, except replace this page.
+        sandbox: !trusted && 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-presentation allow-pointer-lock allow-orientation-lock allow-storage-access-by-user-activation',
+        allow: 'fullscreen; autoplay; encrypted-media; picture-in-picture; clipboard-read; clipboard-write; camera; microphone; display-capture; geolocation; web-share; storage-access; screen-wake-lock',
         referrerpolicy: 'strict-origin-when-cross-origin',
       }),
       shield());
+    if (!trusted && api?.runtime?.id) watchFrame();
   };
+  /* Whether the site really showed: frame.js reports from inside it. No word = refused or broken. */
+  let slow = 0;
+  const notice = (text, ...buttons) => {
+    frame.querySelector('.web-notice')?.remove();
+    const close = h('button', { class: 'icon-btn', type: 'button', title: 'Hide', 'aria-label': 'Hide', onclick: () => box.remove() }, icon('x'));
+    const box = h('div', { class: 'web-notice', role: 'status' }, h('span', null, text), ...buttons, close);
+    frame.append(box);
+  };
+  const ownBtn = (label = 'Open it in its own window') => h('button', { class: 'btn primary', type: 'button', onclick: () => openOwnWindow(c, frame) }, label);
+  const alwaysBtn = () => h('button', { class: 'btn', type: 'button', title: 'From now on this window opens the site in its own window', onclick() { c.own = true; save(); load(); } }, 'Always');
+  function watchFrame() {
+    clearTimeout(slow);
+    let heard = false;
+    frameWatch.set(c.id, msg => {
+      if (!frame.isConnected) { frameWatch.delete(c.id); return; }
+      heard = true;
+      clearTimeout(slow);
+      if (msg.kind === 'signin') {
+        let host = '';
+        try { host = new URL(msg.url).hostname.replace(/^www\./, ''); } catch { /* keep it plain */ }
+        notice(`${host || 'This site'} asks you to sign in, and only allows that in a real window. Sign in there once; this window reloads when you close it.`,
+          h('button', { class: 'btn primary', type: 'button', async onclick() {
+            const id = await openBeside(msg.url, frame);
+            if (id != null) windowGone.set(id, () => load());
+          } }, 'Sign in'), ownBtn('Use its own window'));
+      } else frame.querySelector('.web-notice')?.remove();
+    });
+    slow = setTimeout(() => {
+      if (!heard && frame.isConnected && navigator.onLine) notice('Not showing? Some sites refuse to be inside other pages.', ownBtn(), alwaysBtn());
+    }, 12000);
+  }
   /* With "only the website", the page itself is the card: drag it to move it until you click into it,
      then a thin strip along its top edge moves it; right-click either for the card menu. */
   const card = () => body.parentElement;
@@ -2637,6 +2717,9 @@ function dropUnblock() {
  *  Wiring
  * ------------------------------------------------------------------ */
 function wire() {
+  api?.runtime?.onMessage?.addListener((msg, sender) => {
+    if (msg && msg.homeboard === 'frame' && sender.tab && sender.tab.id === tabId) frameWatch.get(msg.card)?.(msg);
+  });
   $('#export-md').addEventListener('click', () => exportNotes(null));
   $('#undo-update').addEventListener('click', undoUpdate);
   document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {

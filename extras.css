@@ -6,30 +6,6 @@
   font: inherit; line-height: 1.55; tab-size: 2;
 }
 .note-text.md-src::placeholder { color: var(--muted); }
-.md-view > :first-child { margin-top: 0; }
-.md-view > :last-child { margin-bottom: 0; }
-.md-view p { margin: 0 0 .6em; }
-.md-view h1, .md-view h2, .md-view h3, .md-view h4, .md-view h5, .md-view h6 { margin: .7em 0 .35em; line-height: 1.25; }
-.md-view h1 { font-size: 1.45em; } .md-view h2 { font-size: 1.25em; } .md-view h3 { font-size: 1.1em; }
-.md-view h4, .md-view h5, .md-view h6 { font-size: 1em; color: var(--muted); }
-.md-view ul, .md-view ol { margin: 0 0 .6em; padding-left: 1.35em; }
-.md-view li { margin: .12em 0; }
-.md-view li > ul, .md-view li > ol { margin: .1em 0 0; }
-.md-view li.task { list-style: none; margin-left: -1.25em; }
-.md-view li.task > input { width: 14px; height: 14px; margin: 0 6px 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
-.md-view li.task:has(> input:checked) { color: var(--muted); text-decoration: line-through; }
-.md-view code { padding: 1px 5px; border-radius: 4px; font: .9em "Cascadia Mono", Consolas, ui-monospace, monospace; background: color-mix(in srgb, var(--text) 10%, transparent); }
-.md-view pre { margin: 0 0 .7em; padding: 8px 10px; border-radius: var(--r-in); overflow: auto; background: color-mix(in srgb, #000 30%, transparent); }
-.md-view pre code { padding: 0; background: none; font-size: .86em; }
-.md-view blockquote { margin: 0 0 .6em; padding: 2px 0 2px 12px; border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); color: var(--muted); }
-.md-view hr { border: 0; border-top: 1px solid var(--border); margin: .8em 0; }
-.md-view mark { background: color-mix(in srgb, #f5c84c 45%, transparent); color: inherit; border-radius: 2px; padding: 0 2px; }
-.md-view img { max-width: 100%; border-radius: var(--r-in); }
-.md-view table { border-collapse: collapse; margin: 0 0 .7em; font-size: .94em; }
-.md-view th, .md-view td { border: 1px solid var(--border); padding: 4px 8px; }
-.md-view th { background: color-mix(in srgb, var(--text) 7%, transparent); }
-.md-view a { color: var(--accent); }
-.files-md { position: absolute; inset: 0; overflow: auto; padding: 10px 14px; align-self: stretch; line-height: 1.55; }
 
 /* ---------- website windows that show only the site ---------- */
 .card.web-plain { border-color: transparent; background: transparent; }
@@ -233,3 +209,20 @@ body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
 @keyframes hb-flicker { 0% { transform: scale(1, 1) rotate(-2deg); opacity: .95; } 40% { transform: scale(.92, 1.08) rotate(2deg); } 70% { transform: scale(1.05, .94) rotate(-1deg); opacity: .85; } 100% { transform: scale(.96, 1.06) rotate(1deg); } }
 
 @keyframes vend-fall { from { transform: translateY(-150px) rotate(0deg); } 80% { transform: translateY(4px) rotate(92deg); } to { transform: translateY(0) rotate(84deg); } }
+
+/* the file browser preview of a text file fills the preview pane */
+.files-doc { position: absolute; inset: 0; }
+.lightbox-body > .files-doc { background: var(--surface); }
+
+/* ---------- website windows: notices and sites in their own window ---------- */
+.web-notice {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; max-width: calc(100% - 24px);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 8px 8px 12px; border-radius: var(--r-in);
+  background: color-mix(in srgb, var(--raise) 94%, transparent); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35); font-size: .86em; line-height: 1.35;
+}
+.web-notice span { flex: 1 1 180px; }
+.web-notice .btn { padding: 4px 10px; }
+.web-own { gap: 6px; }
+.web-own b { color: var(--text); font-size: 1.05em; }
+.web-own-icon { width: 32px; height: 32px; border-radius: 8px; }

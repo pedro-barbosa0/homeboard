@@ -1,0 +1,3 @@
+/* Only acts when noscroll.js has marked the page (a site inside a Homeboard window that hides scroll bars). */
+html.hb-noscroll, html.hb-noscroll * { scrollbar-width: none !important; }
+html.hb-noscroll ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }

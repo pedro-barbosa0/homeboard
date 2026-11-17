@@ -1,0 +1,44 @@
+/* fileview.js: a text or Markdown file with Formatted / Text / Edit, and the formatted Markdown look
+   shared by notes, the file browser and .md files opened in Edge. Colours come from the page around it. */
+.hbfv { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+.hbfv-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.hbfv-seg { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.hbfv-btn { padding: 3px 10px; border: 0; border-radius: 6px; background: none; color: var(--muted); font: inherit; font-size: .86em; cursor: pointer; }
+.hbfv-btn:hover { color: var(--text); }
+.hbfv-btn.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.hbfv-btn.primary { margin-left: auto; background: var(--accent); color: var(--accent-ink, #fff); font-weight: 600; }
+.hbfv-btn.primary:disabled { opacity: .45; cursor: default; }
+.hbfv-status { font-size: .82em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbfv-status[data-kind="err"] { color: #f0717d; white-space: normal; }
+.hbfv-status[data-kind="ok"] { color: #6fd08c; }
+.hbfv-view { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.hbfv-md { padding: 12px 16px; line-height: 1.6; }
+.hbfv-text { margin: 0; padding: 12px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.55 "Cascadia Mono", Consolas, ui-monospace, monospace; }
+.hbfv-edit {
+  display: block; width: 100%; height: 100%; margin: 0; padding: 12px 14px; border: 0; outline: none; resize: none;
+  background: transparent; color: inherit; font: 12.5px/1.55 "Cascadia Mono", Consolas, ui-monospace, monospace; tab-size: 2;
+}
+.md-view .wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent); }
+.md-view > :first-child { margin-top: 0; }
+.md-view > :last-child { margin-bottom: 0; }
+.md-view p { margin: 0 0 .6em; }
+.md-view h1, .md-view h2, .md-view h3, .md-view h4, .md-view h5, .md-view h6 { margin: .7em 0 .35em; line-height: 1.25; }
+.md-view h1 { font-size: 1.45em; } .md-view h2 { font-size: 1.25em; } .md-view h3 { font-size: 1.1em; }
+.md-view h4, .md-view h5, .md-view h6 { font-size: 1em; color: var(--muted); }
+.md-view ul, .md-view ol { margin: 0 0 .6em; padding-left: 1.35em; }
+.md-view li { margin: .12em 0; }
+.md-view li > ul, .md-view li > ol { margin: .1em 0 0; }
+.md-view li.task { list-style: none; margin-left: -1.25em; }
+.md-view li.task > input { width: 14px; height: 14px; margin: 0 6px 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
+.md-view li.task:has(> input:checked) { color: var(--muted); text-decoration: line-through; }
+.md-view code { padding: 1px 5px; border-radius: 4px; font: .9em "Cascadia Mono", Consolas, ui-monospace, monospace; background: color-mix(in srgb, var(--text) 10%, transparent); }
+.md-view pre { margin: 0 0 .7em; padding: 8px 10px; border-radius: var(--r-in); overflow: auto; background: color-mix(in srgb, #000 30%, transparent); }
+.md-view pre code { padding: 0; background: none; font-size: .86em; }
+.md-view blockquote { margin: 0 0 .6em; padding: 2px 0 2px 12px; border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); color: var(--muted); }
+.md-view hr { border: 0; border-top: 1px solid var(--border); margin: .8em 0; }
+.md-view mark { background: color-mix(in srgb, #f5c84c 45%, transparent); color: inherit; border-radius: 2px; padding: 0 2px; }
+.md-view img { max-width: 100%; border-radius: var(--r-in); }
+.md-view table { border-collapse: collapse; margin: 0 0 .7em; font-size: .94em; }
+.md-view th, .md-view td { border: 1px solid var(--border); padding: 4px 8px; }
+.md-view th { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.md-view a { color: var(--accent); }

@@ -59,7 +59,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     await ev(`document.activeElement.blur()`);
     await sleep(300);
     const view = await ev(`(() => { const v = document.querySelector('[data-id="n2"] .md-view'); return v ? { h1: v.querySelector('h1')?.textContent, b: v.querySelector('strong')?.textContent, a: v.querySelector('a')?.getAttribute('href'), boxes: v.querySelectorAll('input[type=checkbox]').length, td: v.querySelectorAll('td').length } : null; })()`);
-    ok('leaving the field shows it formatted (heading, bold, link, tasks, table)', view && view.h1 === 'Trip' && view.b === 'bold' && view.a === 'https://example.org' && view.boxes === 2 && view.td === 2, JSON.stringify(view));
+    ok('leaving the field shows it formatted (heading, bold, link, tasks, table)', view && view.h1 === 'Trip' && view.b === 'bold' && view.a === 'https://example.org/' && view.boxes === 2 && view.td === 2, JSON.stringify(view));
     await ev(`document.querySelectorAll('[data-id="n2"] .md-view input[type=checkbox]')[1].click()`);
     await sleep(400);
     st = await stored();
