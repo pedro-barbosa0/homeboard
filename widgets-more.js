@@ -568,88 +568,109 @@ function slider(host, saved, onChange) {
 
 /* ================================================================== *
  *  Sound visualiser: moves with what is playing.
- *  A page may only hear sound the user hands it: either the computer's sound,
- *  shared through the browser's "share screen / tab with audio" dialog (asked each
- *  time), or a microphone-type input (allowed once, then remembered).
+ *  "What's playing in Edge" (the default) needs nothing from you: tap.js, which Homeboard runs in
+ *  pages, listens to the video or audio playing in any tab (or in a website window on a board) and
+ *  sends the levels here. No sharing dialog, no sharing bar. A microphone-type input also works.
  * ================================================================== */
 const VIZ_STYLES = { bars: 'Bars', mirror: 'Mirrored bars', wave: 'Wave', ring: 'Ring' };
 const VIZ_COLORS = { accent: 'Theme colour', rainbow: 'Rainbow', fire: 'Fire', white: 'White' };
+const VIZ_BANDS = 96;
+function vizBands(analyser, sampleRate, freq) {        // loudness per band, 40 Hz .. 16 kHz, spaced the way we hear
+  analyser.getByteFrequencyData(freq);
+  const nyq = sampleRate / 2, out = new Array(VIZ_BANDS);
+  for (let i = 0; i < VIZ_BANDS; i++) {
+    const a = Math.floor(40 * 400 ** (i / VIZ_BANDS) / nyq * freq.length), b = Math.max(a + 1, Math.floor(40 * 400 ** ((i + 1) / VIZ_BANDS) / nyq * freq.length));
+    let m = 0;
+    for (let k = a; k < b && k < freq.length; k++) if (freq[k] > m) m = freq[k];
+    out[i] = m;
+  }
+  return out;
+}
 function visualizer(host, saved, onChange) {
-  const st = { style: 'bars', color: 'accent', source: 'screen', device: '' };
+  const api = globalThis.browser ?? globalThis.chrome;
+  const canTap = !!(api?.tabs?.query && api?.runtime?.onConnect);
+  const st = { style: 'bars', color: 'accent', source: 'auto', device: '', off: false };
   if (saved && typeof saved === 'object') {
     if (VIZ_STYLES[saved.style]) st.style = saved.style;
     if (VIZ_COLORS[saved.color]) st.color = saved.color;
-    if (saved.source === 'mic' || saved.source === 'screen') st.source = saved.source;
+    if (saved.source === 'mic') st.source = 'mic';                 // the old "share the computer's sound" became automatic
     if (typeof saved.device === 'string') st.device = saved.device;
+    st.off = !!saved.off;
   }
   const root = el('div', 'viz'), canvas = el('canvas'), hint = el('div', 'viz-hint');
   root.append(canvas, hint);
   host.append(root);
   const g = canvas.getContext('2d');
-  const N = 56;
-  let audio = null, analyser = null, stream = null, freq = null, wave = null, frame = 0, inputs = [], peaks = new Float32Array(N);
   const keep = () => { try { onChange({ ...st }); } catch { /* host gone */ } };
-  const say = (text, sticky) => { hint.textContent = text; hint.classList.toggle('show', !!sticky); };
+  let placed = false, born = performance.now();       // the board adds the widget to the page just after making it
+  const gone = () => { if (root.isConnected) { placed = true; return false; } return placed || performance.now() - born > 10000; };
+  const say = (text, sticky) => { if (hint.textContent !== text) hint.textContent = text; hint.classList.toggle('show', !!sticky); };
 
-  function stop() {
-    cancelAnimationFrame(frame); frame = 0;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (audio) audio.close().catch(() => {});
-    audio = analyser = stream = null;
-    root.dataset.level = '0';
-    root.setAttribute('aria-label', 'Sound visualiser, not listening');
-    say('click to listen');
-    draw();
+  /* ---- where the sound comes from ---- */
+  let mic = null;                                      // { ctx, analyser, stream, freq, wave }
+  const streams = new Map();                           // port -> { bands, wave, at, title, idle, blocked }
+  let inputs = [], poll = 0, frame = 0;
+  function onPort(port) {
+    if (port.name !== 'homeboard-tap' || st.source !== 'auto' || st.off || gone()) return;
+    const s = { at: 0, idle: true };
+    streams.set(port, s);
+    port.onMessage.addListener(m => { Object.assign(s, m); s.idle = !!m.idle; s.blocked = !!m.blocked; if (!m.idle) s.at = performance.now(); s.seen = performance.now(); });
+    port.onDisconnect.addListener(() => streams.delete(port));
   }
-  async function listen() {
-    stop();
-    try {
-      if (st.source === 'screen') {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, systemAudio: 'include' });
-        if (!stream.getAudioTracks().length) { stop(); say('No sound was shared. Pick “Entire screen” or a tab and tick “share audio”.', true); return; }
-        stream.getVideoTracks().forEach(t => { t.enabled = false; });       // only the sound is used
-      } else {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: st.device ? { exact: st.device } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  function askTabs() {                                 // every audible tab is asked to send its levels (the ones already sending just keep going)
+    if (gone()) { quit(); return; }
+    api.tabs.query({ audible: true }).then(tabs => {
+      for (const t of tabs) api.tabs.sendMessage(t.id, { homeboard: 'tap', on: true }).catch(() => {});
+    }, () => {});
+  }
+  function current() {                                 // the stream that played most recently
+    let best = null;
+    for (const s of streams.values()) if (!s.idle && (!best || s.at > best.at)) best = s;
+    return best && performance.now() - best.at < 600 ? best : null;
+  }
+  function stopAll() {
+    clearInterval(poll); poll = 0;
+    for (const p of streams.keys()) { try { p.disconnect(); } catch { /* gone */ } }
+    streams.clear();
+    if (mic) { mic.stream.getTracks().forEach(t => t.stop()); mic.ctx.close().catch(() => {}); mic = null; }
+  }
+  async function start() {
+    stopAll();
+    root.setAttribute('aria-label', st.off ? 'Sound visualiser, not listening' : 'Sound visualiser, listening');
+    if (st.off) { say('click to listen'); return; }
+    if (st.source === 'mic') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: st.device ? { exact: st.device } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         inputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput' && d.label);
-      }
-      audio = new AudioContext();
-      analyser = audio.createAnalyser();
-      analyser.fftSize = 2048; analyser.smoothingTimeConstant = .8;
-      audio.createMediaStreamSource(stream).connect(analyser);
-      freq = new Uint8Array(analyser.frequencyBinCount); wave = new Uint8Array(analyser.fftSize);
-      if (audio.state === 'suspended') audio.resume().catch(() => {});
-      stream.getAudioTracks()[0].addEventListener('ended', stop);
-      root.setAttribute('aria-label', 'Sound visualiser, listening');
-      say('');
-      loop();
-    } catch (e) {
-      stop();
-      say(e && e.name === 'NotAllowedError' ? 'Listening was not allowed.' : 'No sound source could be opened.', true);
+        const ctx = new AudioContext(), analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048; analyser.smoothingTimeConstant = .75;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        mic = { ctx, analyser, stream, freq: new Uint8Array(analyser.frequencyBinCount), wave: new Uint8Array(analyser.fftSize) };
+        say('');
+      } catch (e) { say(e && e.name === 'NotAllowedError' ? 'The microphone was not allowed.' : 'No microphone-type input could be opened.', true); }
+      return;
     }
+    if (!canTap) { say('Hearing what plays needs the installed extension', true); return; }
+    poll = setInterval(askTabs, 1500);
+    askTabs();
   }
+  function quit() { stopAll(); cancelAnimationFrame(frame); frame = 0; api?.runtime?.onConnect?.removeListener(onPort); observer.disconnect(); }
+  if (canTap) api.runtime.onConnect.addListener(onPort);
 
-  const tint = (i, v) => {
-    if (st.color === 'rainbow') return `hsl(${Math.round(i / N * 300)} 90% 62%)`;
+  /* ---- drawing: as many bars as fit nicely, smoothed between updates ---- */
+  const shown = new Float32Array(VIZ_BANDS), peaks = new Float32Array(VIZ_BANDS);
+  let idleT = 0;
+  const tint = (i, n, v) => {
+    if (st.color === 'rainbow') return `hsl(${Math.round(i / n * 300)} 90% 62%)`;
     if (st.color === 'fire') return `hsl(${Math.round(8 + v * 44)} 100% ${Math.round(48 + v * 16)}%)`;
     if (st.color === 'white') return '#f4f1e6';
-    return getComputedStyle(root).getPropertyValue('--accent').trim() || '#7aa2ff';
+    return accent;
   };
-  function levels() {                                // N values 0..1, low notes to high, spaced the way we hear
-    const out = new Float32Array(N);
-    if (!analyser) { for (let i = 0; i < N; i++) out[i] = .05 + .04 * Math.sin(i * .5); return out; }
-    analyser.getByteFrequencyData(freq);
-    const nyq = audio.sampleRate / 2;
-    let top = 0;
-    for (let i = 0; i < N; i++) {
-      const a = Math.floor(40 * (16000 / 40) ** (i / N) / nyq * freq.length), b = Math.max(a + 1, Math.floor(40 * (16000 / 40) ** ((i + 1) / N) / nyq * freq.length));
-      let m = 0;
-      for (let k = a; k < b && k < freq.length; k++) if (freq[k] > m) m = freq[k];
-      out[i] = (m / 255) ** 1.4;
-      peaks[i] = Math.max(out[i], peaks[i] * .94);
-      if (m > top) top = m;
-    }
-    root.dataset.level = String(top);
-    return out;
+  let accent = '#7aa2ff';
+  function source() {                                   // { bands: 0..255 x VIZ_BANDS, wave: 0..255 } or null when quiet
+    if (mic) return { bands: vizBands(mic.analyser, mic.ctx.sampleRate, mic.freq), wave: (mic.analyser.getByteTimeDomainData(mic.wave), mic.wave) };
+    return current();
   }
   function draw() {
     const w = root.clientWidth, h = root.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -657,62 +678,87 @@ function visualizer(host, saved, onChange) {
     if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
-    const v = levels();
+    const src = source();
+    idleT += .02;
+    let top = 0;
+    for (let i = 0; i < VIZ_BANDS; i++) {
+      const target = src ? (src.bands[i] / 255) ** 1.35 : .035 + .025 * Math.sin(i * .35 + idleT);   // quiet: a slow, low ripple
+      shown[i] += (target - shown[i]) * (target > shown[i] ? .55 : .16);   // quick to rise, gentle to fall
+      peaks[i] = Math.max(shown[i], peaks[i] - .008);
+      if (shown[i] > top) top = shown[i];
+    }
+    root.dataset.level = String(Math.round(top * 255));
     g.shadowBlur = document.body.dataset.theme === 'neon' ? 12 : 0;
+    const bar = (n, i) => {                             // the bands under bar i of n
+      const a = Math.floor(i * VIZ_BANDS / n), b = Math.max(a + 1, Math.floor((i + 1) * VIZ_BANDS / n));
+      let m = 0, p = 0;
+      for (let k = a; k < b; k++) { if (shown[k] > m) m = shown[k]; if (peaks[k] > p) p = peaks[k]; }
+      return [m, p];
+    };
     if (st.style === 'wave') {
-      if (analyser) analyser.getByteTimeDomainData(wave);
-      g.lineWidth = 2.5; g.lineJoin = 'round'; g.strokeStyle = g.shadowColor = tint(N / 2, .7);
+      g.lineWidth = Math.max(1.5, Math.min(4, h / 50)); g.lineJoin = 'round'; g.strokeStyle = g.shadowColor = tint(1, 2, .7);
       g.beginPath();
-      const n = 256;
+      const wv = src && src.wave, n = wv ? wv.length - 1 : 128;
       for (let i = 0; i <= n; i++) {
-        const s = analyser ? (wave[Math.floor(i / n * (wave.length - 1))] - 128) / 128 : Math.sin(i / n * 12) * .06;
+        const s = wv ? (wv[i] - 128) / 128 : Math.sin(i / n * 12 + idleT * 3) * .05;
         const x = i / n * w, y = h / 2 + s * h * .46;
         if (i) g.lineTo(x, y); else g.moveTo(x, y);
       }
       g.stroke();
     } else if (st.style === 'ring') {
-      const cx = w / 2, cy = h / 2, r = Math.min(w, h) * (.2 + v[2] * .05), max = Math.min(w, h) / 2 - r - 2;
-      g.lineCap = 'round'; g.lineWidth = Math.max(2, 2 * Math.PI * r / N * .55);
-      for (let i = 0; i < N; i++) {
-        const a = i / N * Math.PI * 2 - Math.PI / 2, len = 2 + v[i] * max;
-        g.strokeStyle = g.shadowColor = tint(i, v[i]);
-        g.beginPath(); g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); g.lineTo(cx + Math.cos(a) * (r + len), cy + Math.sin(a) * (r + len)); g.stroke();
+      const R = Math.min(w, h) / 2, r = R * .42, max = R - r - 3;
+      const n = Math.max(24, Math.min(96, Math.round(2 * Math.PI * r / 7)));
+      g.lineCap = 'round'; g.lineWidth = Math.max(1.5, Math.min(6, 2 * Math.PI * r / n * .5));
+      for (let i = 0; i < n; i++) {
+        const [v] = bar(n, i), a = i / n * Math.PI * 2 - Math.PI / 2, len = 1.5 + v * max;
+        g.strokeStyle = g.shadowColor = tint(i, n, v);
+        g.beginPath(); g.moveTo(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r); g.lineTo(w / 2 + Math.cos(a) * (r + len), h / 2 + Math.sin(a) * (r + len)); g.stroke();
       }
     } else {
-      const gap = Math.max(1, w / N * .22), bw = (w - gap * (N - 1)) / N, mirror = st.style === 'mirror';
-      for (let i = 0; i < N; i++) {
-        const x = i * (bw + gap), bh = Math.max(2, v[i] * (mirror ? h * .48 : h - 6));
-        g.fillStyle = g.shadowColor = tint(i, v[i]);
+      const mirror = st.style === 'mirror';
+      const n = Math.max(12, Math.min(VIZ_BANDS, Math.round(w / 11)));   // bars about 8 px wide with 3 px between, whatever the size
+      const gap = Math.max(1, Math.min(4, w / n * .28)), bw = (w - gap * (n - 1)) / n, rad = Math.min(bw / 2, 3);
+      root.dataset.bars = String(n);
+      for (let i = 0; i < n; i++) {
+        const [v, p] = bar(n, i), x = i * (bw + gap);
+        const bh = Math.max(2, v * (mirror ? h * .48 : h - 4));
+        g.fillStyle = g.shadowColor = tint(i, n, v);
         g.beginPath();
-        if (mirror) g.roundRect(x, h / 2 - bh, bw, bh * 2, bw / 2);
-        else { g.roundRect(x, h - bh, bw, bh, [bw / 2, bw / 2, 0, 0]); g.fillRect(x, h - 2 - peaks[i] * (h - 6), bw, 2); }
+        if (mirror) g.roundRect(x, h / 2 - bh, bw, bh * 2, Math.min(rad, bh));
+        else { g.roundRect(x, h - bh, bw, bh, [Math.min(rad, bh / 2), Math.min(rad, bh / 2), 0, 0]); g.rect(x, h - 2 - p * (h - 4), bw, 1.5); }
         g.fill();
       }
     }
   }
   function loop() {
-    if (!root.isConnected) { stop(); return; }
+    if (gone()) { quit(); return; }
+    accent = getComputedStyle(root).getPropertyValue('--accent').trim() || accent;
     draw();
-    if (analyser) frame = requestAnimationFrame(loop);
+    if (!st.off) {
+      if (st.source === 'auto' && canTap) {
+        const s = [...streams.values()].find(x => x.blocked && performance.now() - (x.seen || 0) < 3000);
+        if (!current() && s) say(`Click once in the “${String(s.title || 'playing').slice(0, 40)}” tab so Homeboard may hear it`, true);
+        else say(current() ? '' : 'nothing playing');
+      }
+    }
+    frame = requestAnimationFrame(loop);
   }
 
-  root.addEventListener('click', () => { if (analyser) stop(); else listen(); });
-  const observer = new ResizeObserver(() => { if (root.isConnected) { if (!analyser) draw(); } else { observer.disconnect(); stop(); } });
+  root.addEventListener('click', () => { st.off = !st.off; keep(); start(); });
+  const observer = new ResizeObserver(() => { if (gone()) quit(); });
   observer.observe(root);
-  stop();
-  // a microphone-type input that was already allowed starts by itself; the computer's sound always has to be offered again
-  if (st.source === 'mic' && navigator.permissions) {
-    navigator.permissions.query({ name: 'microphone' }).then(p => { if (p.state === 'granted' && root.isConnected) listen(); }, () => {});
-  }
+  start();
+  draw();                                             // at once, even before the first frame
+  loop();
 
-  const choose = (key, value, restart) => () => { st[key] = value; keep(); if (restart) listen(); else draw(); };
+  const choose = (key, value) => () => { st[key] = value; keep(); };
   return {
     menu: () => [
-      { info: analyser ? 'Listening. Click the widget to stop.' : 'Click the widget to start listening.' },
+      { info: st.off ? 'Not listening. Click the widget to start.' : st.source === 'auto' ? 'Moves with whatever plays in Edge: a tab, or a website window on a board. Click it to pause.' : 'Listening to the microphone. Click it to pause.' },
       { label: 'Listen to', icon: 'volume', items: [
-        { label: 'This computer’s sound (asks each time)', checked: st.source === 'screen', action() { st.source = 'screen'; st.device = ''; keep(); listen(); } },
-        { label: 'Microphone (remembered)', checked: st.source === 'mic' && !st.device, action() { st.source = 'mic'; st.device = ''; keep(); listen(); } },
-        ...inputs.map(d => ({ label: d.label, checked: st.source === 'mic' && st.device === d.deviceId, action() { st.source = 'mic'; st.device = d.deviceId; keep(); listen(); } })),
+        { label: 'What’s playing in Edge (automatic)', checked: st.source === 'auto', action() { st.source = 'auto'; st.device = ''; st.off = false; keep(); start(); } },
+        { label: 'Microphone (remembered)', checked: st.source === 'mic' && !st.device, action() { st.source = 'mic'; st.device = ''; st.off = false; keep(); start(); } },
+        ...inputs.map(d => ({ label: d.label, checked: st.source === 'mic' && st.device === d.deviceId, action() { st.source = 'mic'; st.device = d.deviceId; st.off = false; keep(); start(); } })),
       ] },
       { label: 'Shape', icon: 'layers', items: Object.entries(VIZ_STYLES).map(([id, name]) => ({ label: name, checked: st.style === id, action: choose('style', id) })) },
       { label: 'Colour', icon: 'layers', items: Object.entries(VIZ_COLORS).map(([id, name]) => ({ label: name, checked: st.color === id, action: choose('color', id) })) },

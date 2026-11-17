@@ -199,7 +199,7 @@ and **right-click for all options**.
 | Widget | Notes |
 | --- | --- |
 | YouTube Music | Shows what YouTube Music is playing — artwork, title, artist, progress — and controls it: previous, play/pause, next, jump (click the bar), volume (slider, or scroll over the controls), like. Works with YouTube Music open anywhere in Edge: a normal or pinned tab, or a website window on a board. Right-click: go to the player, open YouTube Music in a pinned tab, pick a player when several are open, three looks. Needs the installed extension. |
-| Sound visualiser | Click it to start or stop. Right-click → "Listen to": this computer's sound (the browser asks what to share each time — pick "Entire screen" or a tab and tick the audio box), or a microphone-type input (allowed once, then it starts by itself). Four shapes, four colourings. |
+| Sound visualiser | Moves by itself with whatever plays in Edge — a tab, a pinned tab, or a website window on a board — with no sharing dialog and no sharing bar (`tap.js` listens inside the page that plays and sends only the levels). If a tab started playing on its own, the widget may ask you to click once in that tab first. Click the widget to pause it. Right-click → "Listen to" can switch to a microphone-type input. The bars keep their size and spacing at any width; four shapes, four colourings. |
 | Clock | 8 looks (right-click → Change clock), seconds, date, 24-hour |
 | 8-ball pool | You vs the computer or 2 players. Aim with the mouse, hold and pull back for power, scroll for top/back spin. "Choose a cue" opens a cue rack; "Change table" lists the tables. Grab the wooden rail to move it. |
 | Cigarette pack | Click to open, click the cigarettes to take one, click it to light. Double-click finishes it. "Change pack" opens a full-screen tobacco machine (three machine styles, last slot is your own picture) standing in a scene: café at night, café in the morning, gas station, by the clock, or "My own place…" for any picture of yours; also "Burn only while I hold it", count corrections, new pack. |
@@ -256,6 +256,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `index.html`, `style.css`, `app.js` | The board: cards, boards, menus, themes, storage |
 | `fileview.js`, `fileview.css` | A text or Markdown file with Formatted / Text / Edit and Save, used by the file browser and the Edge viewer |
 | `mdview.js`, `mdview.css` | Shows `.md` files opened in Edge formatted (runs only on local `.md` files) |
+| `tap.js` | Runs in pages but stays idle until a board's sound visualiser asks: then it reads the loudness of what that page plays (the sound itself keeps playing as before) |
 | `frame.js`, `noscroll.css` | Runs inside Homeboard website windows only: tells the board a site loaded or went to a sign-in page, and hides the site’s scroll bars when asked |
 | `markdown.js` | Markdown rendering, HTML-to-Markdown, and the zip writer for exports |
 | `widgets.js`, `widgets.css` | Pool table and cigarette pack |
@@ -270,6 +271,7 @@ To read a PDF offline, drop the file on the board rather than linking to it.
 | `icons/` | The extension's icons |
 | `dev/exttest.js` | Automated check: `node dev/exttest.js C:\Users\Pedro\Homeboard <new-empty-profile-folder>` |
 | `dev/helpertest.js`, `dev/soundtest.js` | Checks for the helper (files, console, backup) and the sound visualiser |
+| `dev/taptest.js` | Checks the visualiser hearing another tab by itself, at two sizes |
 | `dev/linkstest.js` | Checks dragging boards, dropping cards on boards, links to boards / views / cards, linked notes |
 | `dev/navtest.js` | Checks moving around (real wheel, pinch, flick, Space-drag), Expand, text size, the Apps and Workspace cards, and live own windows |
 | `dev/appstest.js` | Checks the helper's apps and windows on the real desktop (opens and closes Character Map and a test folder) |
