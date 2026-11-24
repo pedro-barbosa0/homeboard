@@ -48,14 +48,6 @@ body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
 
 /* ---------- console card ---------- */
 .card-term .card-body { background: #0c0d10; color: #d7dae0; font: calc(12.5px * var(--cz, 1))/1.45 "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace; }
-.term-out { flex: 1; min-height: 0; margin: 0; padding: 8px 10px 4px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; outline: none; user-select: text; cursor: text; }
-.term-out .err { color: #f0717d; }
-.term-out .cmd { color: #8fb4ff; }
-.term-out .dim { color: #7d8597; }
-.term-out .btn { font-family: "Segoe UI", system-ui, sans-serif; margin-top: 6px; color: #d7dae0; }
-.term-line { display: flex; align-items: center; gap: 8px; padding: 4px 10px 8px; flex: none; }
-.term-prompt { color: #6fd08c; white-space: nowrap; }
-.term-in { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: inherit; font: inherit; caret-color: #6fd08c; }
 
 /* ---------- no connection ---------- */
 #offline { height: 40px; padding: 0 12px; display: flex; align-items: center; font-size: .85em; color: var(--muted); white-space: nowrap; }
@@ -433,3 +425,35 @@ body.dock-hide.dock-near::after, body.file-board::after { opacity: 0; }
 .np-sliders label { display: flex; flex-direction: column; gap: 2px; }
 .np-ambient { align-self: flex-start; }
 @media (prefers-reduced-motion: reduce) { .np-fx-pic * { animation: none !important; } }
+
+.np-fx-grid { grid-template-columns: repeat(5, 1fr); }
+.np-fx-status { font-size: .8em; line-height: 1.35; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); }
+.np-fx-status[data-state="hearing"] { color: var(--accent); }
+.np-fx-status[data-state="blocked"] { color: #ffb36b; background: color-mix(in srgb, #ffb36b 14%, transparent); }
+.np-fx-pic .fr { stroke: #dff3ff; }
+.np-fx-pic .frg { stroke: #dff3ff; filter: blur(2px); animation: np-fx-glow 1.6s ease-in-out infinite alternate; }
+.np-fx-pic .ball { fill: #bbb; stroke: #fff; stroke-width: .8; }
+.np-fx-pic .dot { fill: #fff; animation: np-fx-dot 1.2s linear infinite; }
+.np-fx-pic .d2 { animation-delay: -.4s; fill: #ff7ad9; } .np-fx-pic .d3 { animation-delay: -.8s; fill: #7ad7ff; }
+@keyframes np-fx-dot { from { transform: translateX(-6px); opacity: .3; } 50% { opacity: 1; } to { transform: translateX(6px); opacity: .3; } }
+.np-fx-pic .tile { animation: np-fx-tile .9s steps(1) infinite; }
+.np-fx-pic .t1 { fill: #ff3d7f; } .np-fx-pic .t2 { fill: #ffd400; animation-delay: -.3s; } .np-fx-pic .t3 { fill: #3dc8ff; animation-delay: -.6s; }
+@keyframes np-fx-tile { 0% { opacity: 1; } 50% { opacity: .2; } }
+
+/* Screen visuals in Now playing: folded into one row until asked for */
+.np-fold { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; border-radius: 8px;
+  font-size: .72em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 8px 6px 6px; }
+.np-fold:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.np-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.np-fold > span { flex: 1; }
+.np-fold-now { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 1.25em; color: var(--muted); }
+.np-fold-now.on { color: var(--accent); }
+.np-chev { font-style: normal; font-size: 1.5em; line-height: 1; transition: transform .2s ease; }
+.np-fold.open .np-chev { transform: rotate(90deg); }
+
+/* smoothness: the little bars on the Now playing button grow with transform (no layout every frame) */
+.np-eq i { height: 14px; transform-origin: 50% 100%; transform: scaleY(.29); }
+@keyframes np-bar { 0%, 100% { transform: scaleY(.29); } 50% { transform: scaleY(1); } }
+/* the console undoes the board's zoom (app/05-helper.js): it draws at the screen's own size */
+.term-in { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.term-in .xterm { height: 100%; }

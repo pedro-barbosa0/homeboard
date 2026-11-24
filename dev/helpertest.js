@@ -72,7 +72,8 @@ const TM = 'tm' + Date.now().toString(36);                // a new console card 
     ok('dragging a file onto the other folder moves it', !has(A, 'f2.txt') && has(B, 'f2.txt'));
     await dragTo('f3.txt', true);
     await sleep(1500);
-    ok('dragging with Ctrl copies it', has(A, 'f3.txt') && has(B, 'f3.txt') && await ev(`document.querySelectorAll('.card').length === 3`));
+    const cardsNow = await ev(`[...document.querySelectorAll('.card')].map(c => c.dataset.id + ':' + c.dataset.type).join()`);
+    ok('dragging with Ctrl copies it', has(A, 'f3.txt') && has(B, 'f3.txt') && cardsNow.split(',').length === 3, `A ${has(A, 'f3.txt')} B ${has(B, 'f3.txt')} cards ${cardsNow}`);
 
     // rename, new folder
     await menu('[data-id="fb"] .files-row[data-name="f1.txt"]'); await pick('Rename');
@@ -98,6 +99,13 @@ const TM = 'tm' + Date.now().toString(36);                // a new console card 
     let screen = [];
     for (let i = 0; i < 30 && !screen.join('').includes(A + '>'); i++) { await sleep(500); screen = await termRows(); }
     ok('console: a prompt appears, in the card’s folder', screen.join('').includes(A + '>'), JSON.stringify(screen.filter(Boolean).slice(-3)));
+    // the console undoes the board's zoom (the mouse lands on the right letter, the text stays crisp)
+    const zoomed = await ev(`(async () => { const w = document.querySelector('#world'); const before = document.querySelector('[data-id="${TM}"] .term-in').style.transform;
+      document.querySelector('#zoom-out').click(); await new Promise(r => setTimeout(r, 900));
+      const z = new DOMMatrix(getComputedStyle(w).transform).a, t = document.querySelector('[data-id="${TM}"] .term-in').style.transform;
+      document.querySelector('#zoom-in').click(); await new Promise(r => setTimeout(r, 700));
+      return { z: +z.toFixed(3), t, inverse: +(1 / z).toFixed(3), before }; })()`);
+    ok('console: it undoes the board zoom (draws at the screen size)', zoomed.z < 1 && Math.abs(parseFloat((zoomed.t.match(/scale\(([\d.]+)\)/) || [])[1]) - zoomed.inverse) < .02, JSON.stringify(zoomed));
     await ev(`document.querySelector('[data-id="${TM}"] .xterm-helper-textarea').focus()`);
     const enter = async text => {                            // as a person would: the console in front and focused, then type
       await send('Page.bringToFront', {}, sid);

@@ -1,6 +1,6 @@
 // One click on a link peeks, two clicks open it; files dragged from a file browser onto the board; the finder
 // under the search box. Run from PowerShell:
-//   node dev/peektest.js C:\Users\Pedro\Homeboard <new empty profile folder> <empty temp folder>
+//   node dev/peektest.js C:\path\to\Homeboard <new empty profile folder> <empty temp folder>
 const { spawn } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

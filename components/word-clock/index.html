@@ -1,0 +1,32 @@
+<!-- Word clock: the time written out in a grid of letters, the words that say it lit in the board's accent. -->
+<style>
+  body { display: grid; place-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(11, 1fr); gap: .2em .45em; font: 700 min(5.4vw, 7.2vh)/1.15 "Segoe UI", system-ui, sans-serif;
+    letter-spacing: .02em; text-align: center; }
+  .grid span { color: color-mix(in srgb, var(--text, #fff) 16%, transparent); transition: color .4s, text-shadow .4s; }
+  .grid span.on { color: var(--accent, #7aa2ff); text-shadow: 0 0 .5em color-mix(in srgb, var(--accent, #7aa2ff) 60%, transparent); }
+</style>
+<div class="grid" id="g"></div>
+<script>
+  const ROWS = ['ITLISASTIME', 'ACQUARTERDC', 'TWENTYFIVEX', 'HALFSTENFTO', 'PASTERUNINE', 'ONESIXTHREE', 'FOURFIVETWO', 'EIGHTELEVEN', 'SEVENTWELVE', 'TENSEOCLOCK'];
+  // [row, start, length] of each word
+  const W = { IT: [0, 0, 2], IS: [0, 3, 2], A: [1, 0, 1], QUARTER: [1, 2, 7], TWENTY: [2, 0, 6], FIVE_M: [2, 6, 4], HALF: [3, 0, 4], TEN_M: [3, 5, 3],
+    TO: [3, 9, 2], PAST: [4, 0, 4], NINE: [4, 7, 4], ONE: [5, 0, 3], SIX: [5, 3, 3], THREE: [5, 6, 5], FOUR: [6, 0, 4], FIVE: [6, 4, 4], TWO: [6, 8, 3],
+    EIGHT: [7, 0, 5], ELEVEN: [7, 5, 6], SEVEN: [8, 0, 5], TWELVE: [8, 5, 6], TEN: [9, 0, 3], OCLOCK: [9, 5, 6] };
+  const HOURS = ['TWELVE', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN'];
+  const grid = document.getElementById('g'), cells = [];
+  ROWS.forEach(r => [...r].forEach(ch => { const s = document.createElement('span'); s.textContent = ch; grid.append(s); cells.push(s); }));
+  function show(now) {
+    const m = Math.round(now.getMinutes() / 5) * 5 % 60, add = Math.round(now.getMinutes() / 5) * 5 >= 60 ? 1 : 0;
+    let h = (now.getHours() + add + (m > 30 ? 1 : 0)) % 12;
+    const words = ['IT', 'IS'];
+    const mins = { 0: [], 5: ['FIVE_M'], 10: ['TEN_M'], 15: ['A', 'QUARTER'], 20: ['TWENTY'], 25: ['TWENTY', 'FIVE_M'], 30: ['HALF'] };
+    const k = m > 30 ? 60 - m : m;
+    words.push(...mins[k]);
+    if (m === 0) words.push(HOURS[h], 'OCLOCK'); else words.push(m > 30 ? 'TO' : 'PAST', HOURS[h]);
+    const lit = new Set();
+    for (const w of words) { const [r, c, n] = W[w]; for (let i = 0; i < n; i++) lit.add(r * 11 + c + i); }
+    cells.forEach((s, i) => s.classList.toggle('on', lit.has(i)));
+  }
+  homeboard.on('time', show);
+</script>

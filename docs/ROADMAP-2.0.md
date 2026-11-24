@@ -1,5 +1,9 @@
 # Homeboard 2.0 — cleaning and polish (prepared during 1.10 / 1.11)
 
+> **Status (2.0.0): done.** This was the brief written ahead of 2.0. What was built, the decisions and the bugs
+> found are in [NOTES-2.0.md](NOTES-2.0.md); the code map is now [ARCHITECTURE.md](ARCHITECTURE.md) (`app.js` became
+> `app/00-core.js` … `app/08-main.js`); performance work is in [PERFORMANCE.md](PERFORMANCE.md). Kept below as written.
+
 2.0 adds nothing big. It makes what exists feel finished: consistent, fast, calm, nothing that
 annoys. This file is the brief, written ahead so the 2.0 session goes straight to work.
 Rule for 2.0 (from the user): review every earlier request against what was built; keep what is

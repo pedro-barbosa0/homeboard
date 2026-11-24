@@ -1,6 +1,6 @@
 // The music overlay (click-through, moves with a tone playing in another tab), its styles, commands in the search box,
 // ambient mode, clear glass and liquid glass refraction. Screenshots each overlay style. Run from PowerShell:
-//   node dev/overlaytest.js C:\Users\Pedro\Homeboard <new empty profile folder> [screenshot folder]
+//   node dev/overlaytest.js C:\path\to\Homeboard <new empty profile folder> [screenshot folder]
 const { spawn } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
@@ -32,6 +32,10 @@ const server = http.createServer((req, res) => {
   });
   const send = (method, params = {}, sessionId) => new Promise((res, rej) => { const i = ++id; pending.set(i, { res, rej }); proc.stdio[3].write(JSON.stringify({ id: i, method, params, sessionId }) + '\0'); });
   try {
+    const t2 = await send('Target.createTarget', { url: 'http://127.0.0.1:8798/' });   // playing before Homeboard is loaded (no tap.js in it yet)
+    const { sessionId: s2 } = await send('Target.attachToTarget', { targetId: t2.targetId, flatten: true });
+    await sleep(1200);
+    await send('Runtime.evaluate', { expression: "document.querySelector('#a').play().catch(() => {}), 1", userGesture: true }, s2);
     const r = await send('Extensions.loadUnpacked', { path: ext });
     const { targetId } = await send('Target.createTarget', { url: `chrome-extension://${r.id}/index.html` });
     const { sessionId: sid } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -49,10 +53,6 @@ const server = http.createServer((req, res) => {
       { id: 'n2', type: 'note', title: 'Below', x: 200, y: 560, w: 420, h: 220, z: 4, markdown: true, md: 'Click me through the overlay' } ] }] } })`);
     await send('Page.reload', {}, sid);
     await sleep(2500);
-    const t2 = await send('Target.createTarget', { url: 'http://127.0.0.1:8798/' });
-    const { sessionId: s2 } = await send('Target.attachToTarget', { targetId: t2.targetId, flatten: true });
-    await sleep(1200);
-    await send('Runtime.evaluate', { expression: `document.querySelector('#a').play().catch(() => {}), 1`, userGesture: true }, s2);
     await sleep(800);
     await send('Page.bringToFront', {}, sid);
     await ev(`window.__errs = []; addEventListener('error', e => __errs.push(String(e.message)))`);
@@ -74,11 +74,37 @@ const server = http.createServer((req, res) => {
     ok('the overlay draws with the music', p1 > 40, p1);
     const through = await ev(`(() => { const r = document.querySelector('[data-id="n2"] .card-body').getBoundingClientRect(); const e = document.elementFromPoint(r.x + 40, r.y + r.height - 20); return { pe: getComputedStyle(document.querySelector('#fx-layer')).pointerEvents, hit: e.closest('.card')?.dataset.id }; })()`);
     ok('…and clicks go through it to the cards', through.pe === 'none' && through.hit === 'n2', JSON.stringify(through));
-    for (const [cmd, file] of [['overlay bottom', 'bottom'], ['overlay top and bottom', 'both'], ['overlay from the sides', 'sides'], ['overlay edge glow', 'glow'], ['overlay waves', 'waves'], ['overlay stars', 'bursts']]) {
+    for (const [cmd, file] of [['overlay bottom', 'bottom'], ['overlay top and bottom', 'both'], ['overlay from the sides', 'sides'], ['overlay edge glow', 'glow'], ['overlay waves', 'waves'], ['overlay stars', 'bursts'], ['overlay frost', 'frost'], ['overlay disco', 'disco']]) {
       await command(cmd);
       await sleep(1500);
       if (outDir) await shot(`overlay-${file}.png`);
     }
+    // Frost takes the chosen colour, and frosts what is behind at the edges (a real blur), only while it is on
+    await command('overlay frost'); await sleep(400);
+    const tintOf = () => ev(`(() => { const c = document.querySelector('#fx-layer'), x = c.getContext('2d'), d = x.getImageData(0, 0, Math.round(c.width * .12), Math.round(c.height * .12)).data;
+      let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 60) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } return n ? [r / n, g / n, b / n].map(Math.round) : null; })()`);
+    const pickColour = (col, hex) => ev(`(async () => { const P = document.querySelector('#np-panel'); if (!P || P.hidden) document.querySelector('#now-playing').click(); await new Promise(r => setTimeout(r, 300));
+      const f = document.querySelector('#np-panel .np-fold:not(.open)'); if (f) { f.click(); await new Promise(r => setTimeout(r, 200)); }
+      const name = { rainbow: 'Rainbow', color: 'Colour', accent: 'Accent', cover: 'Cover' }[${JSON.stringify(col)}];
+      [...document.querySelectorAll('#np-panel .style-chip')].find(b => b.textContent.trim() === name).click(); await new Promise(r => setTimeout(r, 150));
+      const inp = document.querySelector('#np-panel input[type=color]'); if (inp && ${JSON.stringify(!!hex)}) { inp.value = ${JSON.stringify(hex || "")}; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+      document.querySelector('#now-playing').click(); })()`);
+    const drawn = async () => { await send('Page.bringToFront', {}, sid); await send('Page.captureScreenshot', { format: 'jpeg', quality: 10 }, sid); await sleep(120); };   // a hidden test page draws no frames
+    const tints = {};
+    for (const [col, hex] of [['rainbow'], ['color', '#ff2fb0'], ['accent'], ['cover']]) {
+      await pickColour(col, hex);
+      await sleep(1200);
+      await drawn();
+      if (outDir) await shot(`overlay-frost-${col}.png`);
+      tints[col] = await tintOf();
+    }
+    const pink = tints.color;
+    ok('Frost takes the colour picked (pink ice, not grey)', pink && pink[0] > pink[1] + 40 && pink[2] > pink[1] + 20, JSON.stringify(tints));
+    const hz = await ev(`(() => { const e = document.querySelector('#fx-frost'); return e && !e.hidden ? getComputedStyle(e).backdropFilter : 'none'; })()`);
+    ok('…and frosts the edges of the screen (blur behind)', /blur/.test(hz), hz);
+    await command('overlay disco'); await sleep(500); await drawn();
+    await ev(`(async () => { document.querySelector('#now-playing').click(); await new Promise(r => setTimeout(r, 300)); document.querySelector('#np-panel .np-fold.open')?.click(); document.querySelector('#now-playing').click(); })()`);   // fold it back for the check below
+    ok('…which goes away with another style', await ev(`!document.querySelector('#fx-frost') || document.querySelector('#fx-frost').hidden`));
     await command('overlay look tinted');
     await command('overlay bottom');
     await sleep(1200);
@@ -110,12 +136,19 @@ const server = http.createServer((req, res) => {
     await send('Page.bringToFront', {}, sid);
     await ev("document.querySelector('#now-playing').click()");
     await sleep(600);
+    const folded = await ev("({ tiles: document.querySelectorAll('#np-panel .np-fx').length, head: document.querySelector('#np-panel .np-fold')?.textContent || '' })");
+    ok('screen visuals start folded into one row that says what is on', folded.tiles === 0 && /Screen visuals/.test(folded.head), JSON.stringify(folded));
+    await ev("document.querySelector('#np-panel .np-fold').click()");
+    await sleep(300);
     const tiles = await ev("[...document.querySelectorAll('#np-panel .np-fx')].map(b => b.textContent)");
-    ok('Now playing offers the screen visuals with pictures', tiles.length === 7, JSON.stringify(tiles));
+    ok('Now playing offers the screen visuals with pictures', tiles.length === 9 && tiles.includes('Frost') && tiles.includes('Disco'), JSON.stringify(tiles));
     await ev("[...document.querySelectorAll('#np-panel .np-fx')].find(b => /Edge glow/.test(b.textContent)).click()");
     await sleep(700);
     ok('…and picking one turns it on', (await stored()).settings.overlay === 'glow');
     await sleep(400);
+    await sleep(1600);
+    const status = await ev("document.querySelector('#np-panel .np-fx-status')?.textContent || ''");
+    ok('…and says what it hears', /Moving with/.test(status), status);
     await shot('nowplaying-visuals.png');
     const errs = await ev('window.__errs');
     ok('no errors on the page', !errs.length, JSON.stringify(errs));

@@ -1,0 +1,31 @@
+/* Custom components (widgets-custom.js): the card, the picker, the editor and the AI brief. */
+.cc { flex: 1; min-height: 0; position: relative; border-radius: var(--radius); }
+.cc-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: inherit; background: transparent; }   /* no color-scheme here: it must match the page, or Edge paints the frame opaque */
+/* until the card is selected, a cover takes the clicks: drag it, right-click it; click once to use the component */
+.cc-shield { position: absolute; inset: 0; z-index: 1; cursor: grab; }
+.cc.live .cc-shield { display: none; }   /* after the first click, until the card is deselected */
+.cc-grip { position: absolute; left: 50%; top: -11px; z-index: 2; width: 44px; height: 8px; margin-left: -22px; border-radius: 6px; cursor: grab;
+  background: color-mix(in srgb, var(--text) 30%, transparent); opacity: 0; transition: opacity .15s; }
+.card:hover .cc-grip, .card.selected .cc-grip { opacity: 1; }
+.cc-msg { margin: auto; padding: 12px; color: var(--muted); text-align: center; font-size: .9em; }
+
+.cc-pick { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px; overflow: auto; border-radius: inherit;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.cc-pick > b { font-size: 1.02em; }
+.cc-pick > p { margin: 0; color: var(--muted); font-size: .84em; }
+.cc-list { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow: auto; }
+.cc-item { all: unset; display: flex; flex-direction: column; gap: 1px; padding: 7px 9px; border-radius: 9px; cursor: pointer; border: 1px solid var(--border); }
+.cc-item:hover, .cc-item:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.cc-item b { font-size: .9em; } .cc-item span { font-size: .78em; color: var(--muted); }
+.cc-none { margin: 4px 0; color: var(--muted); font-size: .82em; }
+
+.cc-editor { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; background: rgba(0, 0, 0, .35); }
+.cc-editor-panel { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; gap: 8px; padding: 14px;
+  border-radius: 14px; background: var(--raise); color: var(--text); border: 1px solid var(--border); box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+.cc-editor-head { display: flex; align-items: center; gap: 10px; } .cc-editor-head .field { flex: 1; }
+.cc-editor-note { margin: 0; color: var(--muted); font-size: .84em; line-height: 1.4; }
+.cc-code, .cc-want { min-height: 260px; resize: vertical; padding: 10px; border-radius: 9px; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 70%, #000);
+  color: var(--text); font: 12.5px/1.45 "Cascadia Code", Consolas, monospace; tab-size: 2; white-space: pre; }
+.cc-want { min-height: 90px; white-space: pre-wrap; font-family: inherit; font-size: .92em; }
+.cc-err { color: #ff8a80; font: 12px/1.4 Consolas, monospace; white-space: pre-wrap; }
+.cc-err[hidden] { display: none; }

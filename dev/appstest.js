@@ -1,11 +1,11 @@
 // Apps and windows through the helper, on this computer's real desktop (runs a second helper on port 8768):
 // lists Start apps and icons, then opens Character Map and a test folder in zones, checks where they landed,
 // checks that opening again reuses them, and closes both. It never touches windows that were already open.
-//   node dev/appstest.js <scratch folder>
+//   node dev/appstest.js <Homeboard folder> <profile folder (unused)> [scratch folder]
 const { spawn, execFileSync } = require('child_process');
 const fs = require('fs'), path = require('path');
 const root = path.resolve(__dirname, '..');
-const scratch = process.argv[2] || require('os').tmpdir();
+const scratch = process.argv[4] || require('os').tmpdir();   // (argv: <Homeboard folder> <profile> [scratch]: like every suite)
 const PORT = 8768;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const results = [];

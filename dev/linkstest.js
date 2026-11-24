@@ -1,6 +1,6 @@
 // Dragging boards in the tree, dropping a card on a board, links to boards / views / cards, linked notes,
 // and menus over an expanded card. Run from PowerShell:
-//   node dev/linkstest.js C:\Users\Pedro\Homeboard <new empty profile folder>
+//   node dev/linkstest.js C:\path\to\Homeboard <new empty profile folder>
 const { spawn } = require('child_process');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const [ext, profile] = process.argv.slice(2);

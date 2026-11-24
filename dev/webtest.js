@@ -1,6 +1,6 @@
 // Website windows: tab-like permissions, the "loaded" report from frame.js, the notice when a site does not
 // show, the sign-in hand-off for Google (no account involved), and sites that live in their own window.
-//   node dev/webtest.js C:\Users\Pedro\Homeboard <new empty profile folder>
+//   node dev/webtest.js C:\path\to\Homeboard <new empty profile folder>
 const { spawn } = require('child_process');
 const http = require('http');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

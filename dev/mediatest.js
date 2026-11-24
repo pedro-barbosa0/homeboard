@@ -1,6 +1,6 @@
 // Media: a website window keeps playing when another board opens; the Now playing button and panel list what plays
 // (on the boards and in another Edge tab), pause it, go there, and find media on the boards. Run from PowerShell:
-//   node dev/mediatest.js C:\Users\Pedro\Homeboard <new empty profile folder>
+//   node dev/mediatest.js C:\path\to\Homeboard <new empty profile folder>
 const { spawn } = require('child_process');
 const http = require('http');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

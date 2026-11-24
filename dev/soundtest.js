@@ -44,14 +44,14 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid);
     fs.writeFileSync(path.join(outDir, 'viz-files.png'), Buffer.from(data, 'base64'));
     // style change from the menu, then stop by clicking
-    await ev(`(() => { const e = document.querySelector('[data-id="vz"] .viz'), r = e.getBoundingClientRect(); e.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.x + 30, clientY: r.y + 30 })); [...document.querySelectorAll('#menu .menu-item')].find(b => b.textContent.trim().startsWith('Shape')).click(); [...document.querySelectorAll('#menu .menu-item')].find(b => b.textContent.trim() === 'Wave').click(); })()`);
+    await ev(`(() => { const e = document.querySelector('[data-id="vz"] .viz'), r = e.getBoundingClientRect(); e.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.x + 30, clientY: r.y + 30 })); [...document.querySelectorAll('#menu .menu-item')].find(b => b.textContent.trim().startsWith('Shape')).click(); [...document.querySelectorAll('#menu .menu-item, #menu .gallery-tile')].find(b => (b.dataset.label || b.textContent).trim() === 'Waves').click(); })()`);
     await sleep(700);
     const saved = await ev(`chrome.storage.local.get('homeboard:v1').then(r => r['homeboard:v1'].boards[0].cards.find(c => c.id === 'vz').data)`);
     await ev(`document.querySelector('[data-id="vz"] .viz').click()`);
     await sleep(400);
     ok('shape is changed from the right-click menu; a click stops listening', saved.style === 'wave' && saved.source === 'mic' && /not listening/.test((await state())[0]), JSON.stringify(saved));
     const marks = await ev(`Object.fromEntries([...document.querySelectorAll('[data-id="fi"] .files-row')].map(r => [r.dataset.name, r.querySelector('.fmark') ? r.querySelector('.fmark').textContent + ' ' + r.querySelector('.fmark').style.color : r.querySelector('svg')?.getAttribute('class')]))`);
-    ok('file browser marks each file type', /JS/.test(marks['app.js']) && /\{ \}/.test(marks['manifest.json']) && /#/.test(marks['style.css']) && /<>/.test(marks['index.html']) && /M/.test(marks['README.md']) && /fmark-folder/.test(marks.dev) && !!marks['wallpaper.jpg'], JSON.stringify(marks).slice(0, 230));
+    ok('file browser marks each file type', /JS/.test(marks['apps.js']) && /\{ \}/.test(marks['manifest.json']) && /#/.test(marks['style.css']) && /<>/.test(marks['index.html']) && /M/.test(marks['README.md']) && /fmark-folder/.test(marks.dev) && !!marks['icon.svg'],JSON.stringify(marks).slice(0, 230));
     const errs = await ev(`JSON.stringify(window.__errs)`);
     ok('no script errors', errs === '[]', errs);
 

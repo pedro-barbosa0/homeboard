@@ -1,6 +1,6 @@
 // The sound visualiser hearing what plays in another tab by itself (tap.js), with no sharing dialog,
 // and bars that fit the widget's size. Run from PowerShell:
-//   node dev/taptest.js C:\Users\Pedro\Homeboard <new empty profile folder> [screenshot folder]
+//   node dev/taptest.js C:\path\to\Homeboard <new empty profile folder> [screenshot folder]
 const { spawn } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

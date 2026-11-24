@@ -1,6 +1,6 @@
 // Keyboard: Ctrl+←/→ through this board's views, Ctrl+↑/↓ through the list of views across boards,
 // and Tab + arrows through the board tree. Run from PowerShell:
-//   node dev/keystest.js C:\Users\Pedro\Homeboard <new empty profile folder>
+//   node dev/keystest.js C:\path\to\Homeboard <new empty profile folder>
 const { spawn } = require('child_process');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const [ext, profile] = process.argv.slice(2);

@@ -1,0 +1,47 @@
+<!-- Beat orb: a soft blob that breathes with the music, in the colours of the cover of what plays (the board's accent
+     when nothing plays). It draws only while sound comes in. -->
+<style>
+  html, body { background: transparent; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .name { position: absolute; left: 0; right: 0; bottom: 8%; text-align: center; font-weight: 600; font-size: min(5vw, 7vh); opacity: .8;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+</style>
+<canvas id="c"></canvas>
+<div class="name" id="n"></div>
+<script>
+  const cv = document.getElementById('c'), g = cv.getContext('2d'), N = 64, shown = new Float32Array(N);
+  let a = '#7aa2ff', b = '#c8d8ff', t = 0, drawing = false;
+  function colours() {
+    const m = homeboard.music, c = m && m.colors;
+    a = (c && c.vivid) || homeboard.theme.accent || '#7aa2ff';
+    b = (c && c.light) || '#ffffff';
+    document.getElementById('n').textContent = m && m.title ? m.title : '';
+  }
+  homeboard.on('music', colours);
+  homeboard.on('theme', colours);
+  colours();
+  function draw() {
+    const w = innerWidth, h = innerHeight, d = Math.min(2, devicePixelRatio || 1);
+    if (cv.width !== Math.round(w * d)) { cv.width = Math.round(w * d); cv.height = Math.round(h * d); }
+    g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, h);
+    const lv = homeboard.levels;
+    for (let i = 0; i < N; i++) { const k = i < N / 2 ? i : N - 1 - i, v = lv ? lv[Math.floor(k / (N / 2) * 70)] / 255 : 0; shown[i] += (v - shown[i]) * (v > shown[i] ? .4 : .1); }
+    t += .02;
+    const cx = w / 2, cy = h * .45, R = Math.min(w, h) * .26;
+    g.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const ang = i / N * Math.PI * 2, r = R * (1 + shown[i % N] * .55 + Math.sin(ang * 3 + t) * .03);
+      const x = cx + Math.cos(ang - Math.PI / 2) * r, y = cy + Math.sin(ang - Math.PI / 2) * r;
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    const gr = g.createRadialGradient(cx, cy - R * .3, R * .1, cx, cy, R * 1.6);
+    gr.addColorStop(0, b); gr.addColorStop(.55, a); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.shadowColor = a; g.shadowBlur = 30; g.fill();
+  }
+  // draw every frame only while sound comes in; otherwise once, still
+  homeboard.on('levels', lv => {
+    if (lv && !drawing) { drawing = true; const loop = () => { draw(); if (homeboard.levels) requestAnimationFrame(loop); else { drawing = false; draw(); } }; requestAnimationFrame(loop); }
+  });
+  homeboard.on('size', draw);
+  draw();
+</script>

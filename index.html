@@ -9,6 +9,9 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="widgets.css">
 <link rel="stylesheet" href="widgets-more.css">
+<link rel="stylesheet" href="widgets-players.css">
+<link rel="stylesheet" href="widgets-layout.css">
+<link rel="stylesheet" href="widgets-custom.css">
 <link rel="stylesheet" href="widgets-smoke.css">
 <link rel="stylesheet" href="extras.css">
 <link rel="stylesheet" href="fileview.css">
@@ -93,22 +96,62 @@
   </div>
 
   <div class="set-body">
-  <section>
-    <h3>Looks</h3>
+  <section id="style-sec">
+    <h3>Style</h3>
+    <p class="note">A style sets everything below at once: colours, what cards are made of, the background, the font, and the looks of the music widgets. Pick one, then change any part.</p>
+    <div id="kits"></div>
+    <div class="style-label">Your styles</div>
     <p class="note" id="look-note"></p>
     <div id="looks"></div>
-    <button type="button" class="btn" id="look-save">Save what you see as a new look</button>
+    <button type="button" class="btn" id="look-save">Save what you see as a style</button>
   </section>
 
-  <section>
-    <h3>Theme</h3>
+  <section id="vibe-sec">
+    <h3>Intensity</h3>
+    <p class="note">How much everything moves, glows and shines with the music.</p>
+    <div id="vibe"></div>
+    <p class="note vibe-about"></p>
+  </section>
+
+  <section id="colour-sec">
+    <h3>Colours</h3>
+    <div class="style-label">Theme</div>
     <div id="themes"></div>
+    <label class="row">Accent
+      <span class="ctl"><button type="button" class="link" data-reset="accent">Reset</button><input type="color" data-set="accent"></span></label>
+    <label class="row" title="The accent takes the main colour of the album cover of what plays">Accent from the album cover <input type="checkbox" data-set="musicAccent"></label>
+    <details class="set-more">
+      <summary>More colours</summary>
+      <label class="row">Background
+        <span class="ctl"><button type="button" class="link" data-reset="bg">Reset</button><input type="color" data-set="bg"></span></label>
+      <label class="row">Cards
+        <span class="ctl"><button type="button" class="link" data-reset="surface">Reset</button><input type="color" data-set="surface"></span></label>
+      <label class="row">Panels and bars
+        <span class="ctl"><button type="button" class="link" data-reset="raise">Reset</button><input type="color" data-set="raise"></span></label>
+      <label class="row">Text
+        <span class="ctl"><button type="button" class="link" data-reset="text">Reset</button><input type="color" data-set="text"></span></label>
+    </details>
+  </section>
+
+  <section id="surface-sec">
+    <h3>Cards and panels</h3>
+    <div class="style-label">Made of</div>
+    <div id="materials"></div>
+    <div id="glass-opts"></div>
+    <label class="row">Card opacity <input type="range" min="40" max="100" step="1" data-set="cardAlpha"></label>
+    <label class="row">Panel opacity <input type="range" min="40" max="100" step="1" data-set="chromeAlpha"></label>
+    <label class="row">Corner roundness <input type="range" min="0" max="24" step="1" data-set="radius"></label>
+  </section>
+
+  <section id="backdrop-sec">
+    <h3>Background</h3>
+    <div id="backdrops"></div>
     <label class="row">Pattern
       <select data-set="pattern">
         <option value="none">None</option><option value="dots">Dots</option>
         <option value="grid">Grid</option><option value="lines">Lines</option>
       </select></label>
-    <div class="row">Background image
+    <div class="row">Your own picture
       <span class="ctl">
         <button type="button" class="link" id="bg-clear">Remove</button>
         <button type="button" class="btn" id="bg-pick">Choose…</button>
@@ -117,40 +160,35 @@
   </section>
 
   <section>
-    <h3>Colours</h3>
-    <label class="row">Accent
-      <span class="ctl"><button type="button" class="link" data-reset="accent">Reset</button><input type="color" data-set="accent"></span></label>
-    <label class="row">Background
-      <span class="ctl"><button type="button" class="link" data-reset="bg">Reset</button><input type="color" data-set="bg"></span></label>
-    <label class="row">Cards
-      <span class="ctl"><button type="button" class="link" data-reset="surface">Reset</button><input type="color" data-set="surface"></span></label>
-    <label class="row">Panels and bars
-      <span class="ctl"><button type="button" class="link" data-reset="raise">Reset</button><input type="color" data-set="raise"></span></label>
-    <label class="row">Text
-      <span class="ctl"><button type="button" class="link" data-reset="text">Reset</button><input type="color" data-set="text"></span></label>
-  </section>
-
-  <section>
-    <h3>Shape and text</h3>
-    <label class="row">Card opacity <input type="range" min="40" max="100" step="1" data-set="cardAlpha"></label>
-    <label class="row">Panel opacity <input type="range" min="40" max="100" step="1" data-set="chromeAlpha"></label>
-    <label class="row">Corner roundness <input type="range" min="0" max="24" step="1" data-set="radius"></label>
-    <label class="row">Text size <input type="range" min="12" max="18" step="1" data-set="fontSize"></label>
+    <h3>Text</h3>
     <label class="row">Font
       <select data-set="font">
         <option value="system">Modern</option><option value="serif">Serif</option>
         <option value="mono">Monospace</option><option value="hand">Handwritten</option>
       </select></label>
-    <label class="row">Snap to grid <input type="checkbox" data-set="snap"></label>
+    <label class="row">Text size <input type="range" min="12" max="18" step="1" data-set="fontSize"></label>
+  </section>
+
+  <section id="yours-sec">
+    <h3>Make it yours</h3>
+    <p class="note">Your own CSS restyles everything (a card can have its own too: right-click it → Style with CSS). For a card that looks and behaves the way you want, add Widgets → Custom component. Both have Design with AI, which writes a brief for Claude Code or any assistant.</p>
+    <div class="btn-row"><button type="button" class="btn" id="css-edit">Add your own CSS…</button></div>
+  </section>
+
+  <section id="music-sec">
+    <h3>Screen visuals</h3>
+    <p class="note" id="music-note">Bars, waves, Frost and Disco over the whole screen, and ambient mode, are chosen in Now playing (the music button at the top), next to what plays.</p>
+    <div class="btn-row"><button type="button" class="btn" id="open-np">Open Now playing</button></div>
   </section>
 
   <section>
-    <h3>Top bar</h3>
+    <h3>Board</h3>
+    <label class="row">Snap cards to the grid <input type="checkbox" data-set="snap"></label>
     <label class="row">Search with
       <select data-set="engine">
         <option value="bing">Bing</option><option value="google">Google</option><option value="ddg">DuckDuckGo</option>
       </select></label>
-    <label class="row">Show clock <input type="checkbox" data-set="clock"></label>
+    <label class="row">Clock in the top bar <input type="checkbox" data-set="clock"></label>
     <label class="row">12-hour clock <input type="checkbox" data-set="hour12"></label>
     <label class="row">Hide the add bar until the mouse is at the bottom <input type="checkbox" data-set="dockHide"></label>
   </section>
@@ -187,9 +225,18 @@
 <script src="widgets-more.js"></script>
 <script src="widgets-music.js"></script>
 <script src="widgets-smoke.js"></script>
+<script src="widgets-custom.js"></script>
 <script src="vendor/xterm/xterm.js"></script>
 <script src="vendor/xterm/addon-fit.js"></script>
 <script src="apps.js"></script>
-<script src="app.js"></script>
+<script src="app/00-core.js"></script>
+<script src="app/01-look.js"></script>
+<script src="app/02-ui.js"></script>
+<script src="app/03-cards.js"></script>
+<script src="app/04-content.js"></script>
+<script src="app/05-helper.js"></script>
+<script src="app/06-web.js"></script>
+<script src="app/07-media.js"></script>
+<script src="app/08-main.js"></script>
 </body>
 </html>

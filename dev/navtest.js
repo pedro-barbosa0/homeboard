@@ -1,6 +1,6 @@
 // Moving around the board (real wheel events), expanding cards, card text size, the Apps and Workspace cards,
 // and a site's own window shown live in its card. Run from PowerShell:
-//   node dev/navtest.js C:\Users\Pedro\Homeboard <new empty profile folder> [screenshot folder]
+//   node dev/navtest.js C:\path\to\Homeboard <new empty profile folder> [screenshot folder]
 const { spawn } = require('child_process');
 const fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
@@ -29,7 +29,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     const wheel = (x, y, dy, extra = {}) => send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: extra.dx || 0, deltaY: dy, modifiers: extra.mod || 0 }, sid);
     const mouse = (type, x, y, extra = {}) => send('Input.dispatchMouseEvent', { type, x, y, button: extra.button || 'left', buttons: extra.buttons ?? 1, clickCount: 1, ...extra }, sid);
     const view = () => ev(`(() => { const m = /translate\\(([-\\d.e]+)px, ([-\\d.e]+)px\\) scale\\(([-\\d.e]+)\\)/.exec(document.querySelector('#world').style.transform); return m ? { x: +m[1], y: +m[2], z: +m[3] } : null; })()`);
-    const stored = () => ev(`chrome.storage.local.get('homeboard:v1').then(r => r['homeboard:v1'])`);
+    const stored = () => ev(`chrome.storage.local.get(['homeboard:v1', 'homeboard:views']).then(r => { const s = r['homeboard:v1'], v = r['homeboard:views'] || {}; if (s) for (const b of s.boards) if (v[b.id]) b.view = v[b.id]; return s; })`);   // views live in their own record
     const shot = async name => { if (!outDir) return; const { data } = await send('Page.captureScreenshot', { format: 'png' }, sid); fs.writeFileSync(path.join(outDir, name), Buffer.from(data, 'base64')); };
     await sleep(2200);
     const long = Array.from({ length: 60 }, (_, i) => `- line ${i + 1} of a long note`).join('\\n');

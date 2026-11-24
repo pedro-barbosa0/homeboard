@@ -15,8 +15,9 @@ if (!api?.runtime?.onMessage || window.__homeboardTap) return;
 window.__homeboardTap = true;
 
 const BANDS = 96, WAVE = 128;
-let ctx = null, analyser = null, freq = null, wave = null, port = null, timer = 0, lastSent = 0;
+let ctx = null, analyser = null, freq = null, wave = null, port = null, timer = 0, lastSent = 0, wantWave = false, sentTitle = '';
 const hooked = new WeakSet();
+let heard = [];                                        // the elements connected here (refreshed with hook(), not every tick)
 
 const playing = () => [...document.querySelectorAll('video, audio')].filter(m => !m.paused && !m.ended && m.readyState > 2 && !m.muted && m.volume > 0);
 
@@ -41,6 +42,7 @@ async function hook() {
     try { ctx.createMediaElementSource(m).connect(analyser); hooked.add(m); }
     catch { /* the page already uses it with Web Audio, or it cannot be heard: leave it alone */ }
   }
+  heard = [...document.querySelectorAll('video, audio')].filter(m => hooked.has(m));
   return playing().some(m => hooked.has(m)) ? 'ok' : 'nothing';
 }
 
@@ -54,10 +56,16 @@ function bands() {
     for (let k = a; k < b && k < freq.length; k++) if (freq[k] > m) m = freq[k];
     out[i] = m;
   }
-  analyser.getByteTimeDomainData(wave);
-  const w = new Array(WAVE);
-  for (let i = 0; i < WAVE; i++) w[i] = wave[Math.floor(i / WAVE * wave.length)];
-  return { bands: out, wave: w };
+  // sent packed: one character per band (0..255), a few hundred bytes instead of a list of numbers
+  const msg = { b: String.fromCharCode.apply(null, out) };
+  if (wantWave) {                                       // only the Sound visualiser's wave style reads the waveform
+    analyser.getByteTimeDomainData(wave);
+    const w = new Array(WAVE);
+    for (let i = 0; i < WAVE; i++) w[i] = wave[Math.floor(i / WAVE * wave.length)];
+    msg.w = String.fromCharCode.apply(null, w);
+  }
+  if (document.title !== sentTitle) msg.title = sentTitle = document.title;   // the title only when it changes
+  return msg;
 }
 
 function stop() {
@@ -69,17 +77,19 @@ function start() {
   if (port) return;
   try { port = api.runtime.connect({ name: 'homeboard-tap' }); } catch { return; }   // the extension was reloaded: nothing to send to
   port.onDisconnect.addListener(() => { port = null; clearInterval(timer); timer = 0; });
+  port.onMessage.addListener(m => { if (m && 'wave' in m) wantWave = !!m.wave; });
+  sentTitle = '';
   let checked = 0, state = 'nothing', quiet = false;
   timer = setInterval(async () => {
     if (!port) return;
     const now = Date.now();
     if (now - checked > 1500) { checked = now; state = await hook(); }   // a new video, the next song in a new element...
-    if (state !== 'ok' || !playing().some(m => hooked.has(m))) {         // quiet, or not allowed to listen yet
-      if (!quiet || now - lastSent > 1000) { quiet = true; lastSent = now; try { port.postMessage({ idle: true, blocked: state === 'blocked', title: document.title }); } catch { stop(); } }
+    if (state !== 'ok' || !heard.some(m => !m.paused && !m.ended && !m.muted && m.volume > 0)) {   // quiet, or not allowed to listen yet
+      if (!quiet || now - lastSent > 1000) { quiet = true; lastSent = now; try { port.postMessage({ idle: true, blocked: state === 'blocked', title: sentTitle = document.title }); } catch { stop(); } }
       return;
     }
     quiet = false; lastSent = now;
-    try { port.postMessage({ ...bands(), title: document.title }); } catch { stop(); }
+    try { port.postMessage(bands()); } catch { stop(); }
   }, 33);
 }
 
@@ -100,6 +110,9 @@ api.runtime.onMessage.addListener((msg, _s, reply) => {
 api.runtime.onMessage.addListener(msg => {
   if (!msg || msg.homeboard !== 'tap') return;
   if (msg.on === false) { stop(); return; }
+  // a board that started listening after this page's levels began never got them: open the stream again, so every
+  // board listening now receives it
+  if (msg.renew && port) { try { port.disconnect(); } catch { /* gone */ } port = null; clearInterval(timer); timer = 0; }
   if (playing().length) start();                       // frames with nothing playing stay out of it
 });
 })();

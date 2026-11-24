@@ -1,7 +1,7 @@
 // .md files opened in Edge (formatted / text / edit, local pictures, Obsidian embeds, saving, a file changed
 // meanwhile), the file browser's text view and editing, and hidden scroll bars in frameless website windows.
 // Needs the helper from this folder running (tools\start-helper.ps1).
-//   node dev/filestest.js C:\Users\Pedro\Homeboard <new empty profile folder> <empty temp folder>
+//   node dev/filestest.js C:\path\to\Homeboard <new empty profile folder> <empty temp folder>
 const { spawn } = require('child_process');
 const fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

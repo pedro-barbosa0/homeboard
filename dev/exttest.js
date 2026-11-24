@@ -141,7 +141,8 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 700, y: 700, deltaX: 0, deltaY: -200, modifiers: 2 }, sid);
     await sleep(1300);                                  // the zoom is eased, then saved
     s = await stored(sid);
-    ok('pan + ctrl-wheel zoom saved', s.boards[0].view.x !== 0 && s.boards[0].view.z > 1, JSON.stringify(s.boards[0].view));
+    const vw = await ev(sid, `chrome.storage.local.get('homeboard:views').then(r => (r['homeboard:views'] || {})['${s.boards[0].id}'] || null)`);   // views are kept in their own record
+    ok('pan + ctrl-wheel zoom saved (in its own small record, not the whole board)', vw && vw.x !== 0 && vw.z > 1, JSON.stringify({ views: vw, main: s.boards[0].view }));
     await ev(sid, `document.querySelector('#zoom-fit').click()`);
 
     // boards
@@ -155,8 +156,8 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
 
     // theme
     await ev(sid, `document.querySelector('.theme[data-theme="neon"]').click()`);
-    await sleep(400);
-    ok('neon theme applies', await ev(sid, `document.body.dataset.theme === 'neon' && getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === '#00f0ff' && document.body.dataset.pattern === 'grid'`));
+    await sleep(2000);                                  // the accent fades in (a registered colour: read back as rgb())
+    ok('neon theme applies', await ev(sid, `document.body.dataset.theme === 'neon' && getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === 'rgb(0, 240, 255)' && document.body.dataset.pattern === 'grid'`));
 
     // website window against a site that forbids embedding
     // panels restyle themselves
@@ -275,7 +276,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
       if (t) { const { sessionId } = await send('Target.attachToTarget', { targetId: t.targetId, flatten: true }); listing = await ev(sessionId, `document.title + ' :: ' + document.body.innerText.slice(0, 1200).replace(/\\s+/g, ' ')`).catch(e => 'ERR ' + e.message); }
     }
     console.log('     file access allowed for this extension:', allowed);
-    ok('typing a folder path shows that folder', local.src.startsWith('file:///') && local.sandbox === false && /app\.js/.test(listing), JSON.stringify(local) + ' listing=' + listing.slice(0, 160));
+    ok('typing a folder path shows that folder', local.src.startsWith('file:///') && local.sandbox === false && /manifest\.json/.test(listing), JSON.stringify(local) + ' listing=' + listing.slice(0, 160));
 
     // PDF link: frame must not be sandboxed (the built-in viewer refuses sandboxed frames)
     await paste('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
@@ -287,7 +288,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     await ev(m.sid, `document.querySelector('.theme[data-theme="acrylic"]').click()`);
     await sleep(500);
     const ac = await ev(m.sid, `(async () => ({ theme: document.body.dataset.theme, blur: getComputedStyle(document.querySelector('.card-todo')).backdropFilter, bg: getComputedStyle(document.querySelector('#backdrop')).backgroundImage.includes('wallpaper.jpg'), wall: (await fetch('wallpaper.jpg')).ok, alpha: getComputedStyle(document.documentElement).getPropertyValue('--card-alpha').trim() }))()`);
-    ok('acrylic theme: 30px blur, translucent cards, wallpaper backdrop', ac.theme === 'acrylic' && /blur\(30px\)/.test(ac.blur) && ac.bg && ac.wall && ac.alpha === '56%', JSON.stringify(ac));
+    ok('acrylic theme: 30px blur, translucent cards, wallpaper backdrop (wallpaper.jpg is personal and not published: a gradient shows without it)', ac.theme === 'acrylic' && /blur\(30px\)/.test(ac.blur) && ac.bg && ac.alpha === '56%', JSON.stringify(ac));
 
     // media survives a reload, and travels in the backup
     await sleep(600);
@@ -310,9 +311,9 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     const menuPick = label => ev(m.sid, `(() => { document.querySelector('[data-add="widget"]').click(); const b = [...document.querySelectorAll('#menu .menu-item')].find(x => x.textContent.trim() === ${JSON.stringify(label)}); b && b.click(); return !!b; })()`);
     const active = async () => { const st = await stored(m.sid); return st.boards.find(b => b.id === st.active); };
 
-    ok('widgets menu offers the pool table', await menuPick('Pool table') && await waitFor(m.sid, `!!document.querySelector('.card-widget canvas')`));
+    ok('widgets menu offers the pool table', await menuPick('Pool table') && await waitFor(m.sid, `!![...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]`));
     await sleep(600);
-    const map = await ev(m.sid, `(() => { const cv = document.querySelector('.card-widget canvas'), r = cv.getBoundingClientRect(); const s = Math.min(r.width / 1080, r.height / 580); const ox = (r.width - 1080 * s) / 2 + 40 * s, oy = (r.height - 580 * s) / 2 + 40 * s; const lit = (() => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let n = 0; for (let i = 3; i < d.length; i += 4000) if (d[i]) n++; return n; })(); return { x: r.x + ox, y: r.y + oy, s, lit }; })()`);
+    const map = await ev(m.sid, `(() => { const cv = [...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0], r = cv.getBoundingClientRect(); const s = Math.min(r.width / 1080, r.height / 580); const ox = (r.width - 1080 * s) / 2 + 40 * s, oy = (r.height - 580 * s) / 2 + 40 * s; const lit = (() => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let n = 0; for (let i = 3; i < d.length; i += 4000) if (d[i]) n++; return n; })(); return { x: r.x + ox, y: r.y + oy, s, lit }; })()`);
     const T = (x, y) => [map.x + x * map.s, map.y + y * map.s];
     ok('pool table is drawn', map.lit > 50, 'sampled opaque pixels=' + map.lit);
     {
@@ -320,7 +321,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
       await drag(m.sid, x0, y0, x1, y1);
     }
     await sleep(400);
-    const rolling = await ev(m.sid, `document.querySelector('.card-widget canvas').getAttribute('aria-label')`);
+    const rolling = await ev(m.sid, `[...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0].getAttribute('aria-label')`);
     let broke = null;
     for (let i = 0; i < 60; i++) {                                   // wait for the break to settle and be saved
       await send('Page.bringToFront', {}, m.sid);              // a hidden page pauses animation
@@ -335,7 +336,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
       await send('Page.bringToFront', {}, m.sid);
       await sleep(500);
       const g = (await active()).cards.find(c => c.widget === 'pool');
-      const text = await ev(m.sid, `document.querySelector('.card-widget canvas').getAttribute('aria-label')`);
+      const text = await ev(m.sid, `[...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0].getAttribute('aria-label')`);
       if (g.data.winner != null || (g.data.turn === 0 && !/thinking/.test(text) && text)) { cpu = { data: g.data, text }; break; }
     }
     ok('computer plays and hands the table back (or the game ends)', cpu, cpu ? cpu.text : 'still waiting');
@@ -360,7 +361,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     if (shotsDir) {
       require('fs').mkdirSync(shotsDir, { recursive: true });
       for (const theme of ['graphite', 'neon', 'acrylic']) {
-        await ev(m.sid, `document.querySelector('.theme[data-theme="${theme}"]').click(); document.querySelector('#settings').hidden = true; document.querySelector('.card-widget canvas').dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 0 }))`);
+        await ev(m.sid, `document.querySelector('.theme[data-theme="${theme}"]').click(); document.querySelector('#settings').hidden = true; [...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0].dispatchEvent(new PointerEvent('pointermove', { clientX: 0, clientY: 0 }))`);
         await sleep(900);
         const { data } = await send('Page.captureScreenshot', { format: 'png' }, m.sid);
         require('fs').writeFileSync(require('path').join(shotsDir, theme + '.png'), Buffer.from(data, 'base64'));
@@ -370,13 +371,13 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     ok('no script errors while playing', pageErrs === '[]', pageErrs);
     await send('Page.reload', {}, m.sid);
     await sleep(1500);
-    const back = await ev(m.sid, `(() => { const b = document.querySelector('.cig.lit .cig-burn'); return { lit: !!b, delay: b ? parseFloat(b.style.animationDelay) : 0, info: document.querySelector('.pack-count')?.textContent, pool: !!document.querySelector('.card-widget canvas') }; })()`);
+    const back = await ev(m.sid, `(() => { const b = document.querySelector('.cig.lit .cig-burn'); return { lit: !!b, delay: b ? parseFloat(b.style.animationDelay) : 0, info: document.querySelector('.pack-count')?.textContent, pool: !![...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0] }; })()`);
     ok('after a reload the cigarette is still burning from where it was, and the pool game is back', back.lit && back.delay < -1 && back.info.startsWith('19') && back.pool, JSON.stringify(back));
 
     // everything else lives on the right-click menu
     await send('Page.bringToFront', {}, m.sid);
     const rightClick = sel => ev(m.sid, `(() => { const e = document.querySelector(${JSON.stringify(sel)}), r = e.getBoundingClientRect(); e.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 })); return [...document.querySelectorAll('#menu .menu-item')].map(b => b.textContent.trim()); })()`);
-    const choose = label => ev(m.sid, `(() => { const b = [...document.querySelectorAll('#menu .menu-item')].find(x => x.textContent.trim().startsWith(${JSON.stringify(label)})); if (b) b.click(); return !!b; })()`);
+    const choose = label => ev(m.sid, `(() => { const b = [...document.querySelectorAll('#menu .menu-item, #menu .gallery-tile')].find(x => (x.dataset.label || x.textContent).trim().startsWith(${JSON.stringify(label)})); if (b) b.click(); return !!b; })()`);
     const packData = async () => (await active()).cards.find(c => c.widget === 'pack').data;
     const items = await rightClick('.pack-front');
     const picked = await choose('Change pack') && await ev(m.sid, `(() => { const b = document.querySelector('.vend-slot[data-skin="sgventil"]'); if (b) b.click(); return !!b && document.querySelectorAll('.vend-slot').length > 10; })()`);
@@ -408,7 +409,7 @@ const ok = (name, pass, info = '') => { results.push({ name, pass: !!pass, info 
     const tablePicked = await choose('Change table') && await choose('Tournament blue');
     await sleep(500);
     const poolCard = (await active()).cards.find(c => c.widget === 'pool');
-    ok('right-click menu changes the pool table, and the table has no frame', tablePicked && poolCard.data.skin === 'blue' && await ev(m.sid, `document.querySelector('.card-widget canvas').closest('.card').classList.contains('bare')`), 'skin=' + poolCard.data.skin);
+    ok('right-click menu changes the pool table, and the table has no frame', tablePicked && poolCard.data.skin === 'blue' && await ev(m.sid, `[...document.querySelectorAll('.card-widget canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0].closest('.card').classList.contains('bare')`), 'skin=' + poolCard.data.skin);
 
     // ---- to-do details, folder links, file browser, board tree ----
     await ev(m.sid, `window.__errs = []; addEventListener('error', e => __errs.push(String(e.message))); addEventListener('unhandledrejection', e => __errs.push('rejection: ' + (e.reason && e.reason.message || e.reason)));`);

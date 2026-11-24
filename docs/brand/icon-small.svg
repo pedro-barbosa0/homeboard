@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="Homeboard">
+  <!-- The mark drawn for 16 px (tabs, the toolbar): fewer, bigger shapes; same handle, shell, bezel and cards. -->
+  <path d="M5.6 3.4V2.3a1.5 1.5 0 0 1 1.5-1.5h1.8a1.5 1.5 0 0 1 1.5 1.5v1.1" fill="none" stroke="#174BA8" stroke-width="1.5"/>
+  <rect x=".5" y="3" width="15" height="12.6" rx="3.6" fill="#1F63D2"/>
+  <rect x="2" y="4.5" width="12" height="9.4" rx="2" fill="#F4F7FB"/>
+  <rect x="3" y="5.5" width="10" height="7.4" rx="1.2" fill="#10285A"/>
+  <rect x="3.9" y="6.4" width="3.7" height="2.6" rx=".8" fill="#FFC93C"/>
+  <rect x="8.4" y="6.4" width="3.7" height="3.6" rx=".8" fill="#8EC5FF"/>
+  <rect x="3.9" y="9.6" width="3.7" height="2.4" rx=".8" fill="#39C27F"/>
+  <rect x="8.4" y="10.6" width="3.7" height="1.4" rx=".6" fill="#FF6B5E"/>
+</svg>

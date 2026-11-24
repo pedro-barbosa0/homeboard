@@ -1,0 +1,6 @@
+[
+  {"id": "daynight-clock", "name": "Day & night sky", "description": "A pixel-art clock: the sun and the moon cross the sky with the real time", "w": 300, "h": 220},
+  {"id": "word-clock", "name": "Word clock", "description": "The time written out, the words lit in your accent", "w": 320, "h": 300},
+  {"id": "beat-orb", "name": "Beat orb", "description": "Breathes with the music, in the colours of the cover", "w": 260, "h": 260},
+  {"id": "countdown", "name": "Countdown", "description": "Days, hours and minutes to a date you pick", "w": 300, "h": 200}
+]

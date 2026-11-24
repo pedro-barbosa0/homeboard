@@ -1,5 +1,5 @@
 // Undo / redo, and copying, pasting and duplicating boards.
-//   node dev/boardstest.js C:\Users\Pedro\Homeboard <new empty profile folder>
+//   node dev/boardstest.js C:\path\to\Homeboard <new empty profile folder>
 const { spawn } = require('child_process');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const [ext, profile] = process.argv.slice(2);
@@ -58,7 +58,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     ok('Ctrl+Z puts a moved card back; Ctrl+Y moves it again', moved !== start && undone === start && redone === moved, `${start} -> ${moved} -> ${undone} -> ${redone}`);
 
     // deleting a card and a board are undone too
-    await ev(`document.querySelector('[data-id="n2"] .card-title').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+    await ev(`(() => { const t = document.querySelector('[data-id="n2"] .card-title'); t.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); t.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); })()`);
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 }, sid);
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 }, sid);
     await sleep(800);
@@ -72,7 +72,8 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     const boardsGone = (await stored()).boards.length;
     await ctrl('z', 90);
     await sleep(800);
-    ok('a deleted board comes back', boardsGone === 2 && (await stored()).boards.some(b => b.id === 'w'));
+    const back = (await stored()).boards.map(b => b.id).join(',');
+    ok('a deleted board comes back', boardsGone === 2 && back.split(',').includes('w'), `after delete ${boardsGone}, after undo ${back}, tabs ${await ev(`[...document.querySelectorAll('[data-board]')].map(e => e.dataset.board).join()`)}`);
     const typed = await ev(`(() => { document.querySelector('[data-id="n1"] .note-text').click(); return document.activeElement.tagName; })()`);
     await send('Input.insertText', { text: ' more' }, sid);
     await ctrl('z', 90);

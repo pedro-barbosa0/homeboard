@@ -9,3 +9,7 @@ wallpaper.jpg
 
 node_modules/
 *.zip
+
+# leftovers of older test runs
+icon-test.png
+Homeboard workspace test/

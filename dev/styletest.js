@@ -1,6 +1,6 @@
 // Style kits, Shuffle, materials and backdrops, widgets restyled on every board, the picture frame, and cover colours.
 // Takes a screenshot per kit for a look. Run from PowerShell:
-//   node dev/styletest.js C:\Users\Pedro\Homeboard <new empty profile folder> [screenshot folder]
+//   node dev/styletest.js C:\path\to\Homeboard <new empty profile folder> [screenshot folder]
 const { spawn } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
@@ -82,8 +82,62 @@ const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-T
     await sleep(400);
     st = await stored();
     ok('Shuffle makes a new combination', /^#[0-9a-f]{6}$/.test(st.settings.accent) && !!st.settings.material && !!st.settings.scene, JSON.stringify({ m: st.settings.material, s: st.settings.scene, a: st.settings.accent }));
-    await ev(`[...document.querySelectorAll('#style-sec .style-chip')].find(c => c.textContent === 'Paper').click()`);
+    await ev(`[...document.querySelectorAll('#materials .style-chip')].find(c => c.textContent === 'Paper').click()`);
     ok('a material can be picked on its own', await ev(`document.body.dataset.material`) === 'paper');
+    // one home for each setting: no glass colour for paper, no screen-visual controls here (they are in Now playing)
+    const homes = await ev(`(async () => {
+      const paper = document.querySelector('#glass-opts').childElementCount;
+      [...document.querySelectorAll('#materials .style-chip')].find(c => c.textContent === 'Frosted glass').click();
+      const frosted = document.querySelector('#glass-opts').childElementCount;
+      const heads = [...document.querySelectorAll('#settings h3')].map(x => x.textContent);
+      const overlayHere = !!document.querySelector('#overlay-sec, #settings select option[value="bursts"]');
+      document.querySelector('#open-np').click(); await new Promise(r => setTimeout(r, 300));
+      const np = document.querySelector('#np-panel'), opened = !!np && !np.hidden && document.querySelector('#settings').hidden, npDial = !!(np && np.querySelector('.vibe-opt'));
+      np?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.querySelector('#settings-btn').click();
+      return { paper, frosted, heads: heads.join(), dup: heads.length - new Set(heads).size, overlayHere, opened, npDial };
+    })()`);
+    ok('Customize: one home for each setting (glass colour only for glass; screen visuals and Intensity not repeated)', homes.paper === 0 && homes.frosted > 0 && !homes.dup && !homes.overlayHere && homes.opened && !homes.npDial && homes.heads === 'Style,Intensity,Colours,Cards and panels,Background,Text,Make it yours,Screen visuals,Board,Website windows,Your data', JSON.stringify(homes));
+
+    // Intensity: one dial, Calm to Wild; Balanced (the default) changes nothing
+    const dial = await ev(`({ opts: [...document.querySelectorAll('#vibe-sec .vibe-opt')].map(b => b.textContent), on: document.querySelector('#vibe-sec .vibe-opt.on')?.textContent, vibe: document.body.dataset.vibe, f: getComputedStyle(document.querySelector('#backdrop')).filter })`);
+    ok('Customize has an Intensity dial, Balanced by default (nothing changed)', dial.opts.join() === 'Calm,Soft,Balanced,Lively,Wild' && dial.on === 'Balanced' && dial.vibe === 'balanced' && /saturate\(1\)/.test(dial.f), JSON.stringify(dial));
+    const pickVibe = name => ev(`[...document.querySelectorAll('#vibe-sec .vibe-opt')].find(b => b.textContent === ${JSON.stringify(name)}).click()`);
+    await ev(`(() => { const s = document.querySelector('#set-panel, .set-panel, #settings'); })()`);
+    await pickVibe('Calm'); await sleep(400);
+    const calm = await ev(`({ vibe: document.body.dataset.vibe, f: getComputedStyle(document.querySelector('#backdrop')).filter, about: document.querySelector('#vibe-sec .vibe-about')?.textContent || '' })`);
+    st = await stored();
+    ok('Calm: quieter backdrop colours, kept', calm.vibe === 'calm' && /saturate\(0\.55\)/.test(calm.f) && st.settings.vibe === 'calm' && /Still and quiet/.test(calm.about), JSON.stringify(calm));
+    await shot('style-vibe-calm.png');
+    // Wild: the music cards glow on the beat (a beat is fed in: this test browser plays no sound)
+    await ev(`(() => { const A = window.HomeboardAudio, t0 = performance.now();
+      A.now = () => { const ph = ((performance.now() - t0) / 400) % 1, kick = Math.max(0, 1 - ph * 4);
+        return { title: 'beat', bands: Array.from({ length: 96 }, (_, i) => Math.round(i < 8 ? 40 + 215 * kick : 50)) }; }; })()`);
+    await pickVibe('Wild'); await sleep(300);
+    let glow = null;
+    for (let i = 0; i < 30; i++) {
+      await send('Page.bringToFront', {}, sid); await sleep(60);
+      glow = await ev(`(() => { const c = document.querySelector('[data-id="y1"]'); return { vibe: document.body.dataset.vibe, beat: c.classList.contains('beat'), v: +getComputedStyle(c).getPropertyValue('--beat') || 0, f: getComputedStyle(document.querySelector('#backdrop')).filter }; })()`);
+      if (glow.beat && glow.v > .3) break;
+    }
+    ok('Wild: vivid backdrop, and the music cards glow on the beat', glow.vibe === 'wild' && /saturate\(1\.4\)/.test(glow.f) && glow.beat && glow.v > .3, JSON.stringify(glow));
+    await shot('style-vibe-wild.png');
+    await pickVibe('Balanced'); await sleep(1500); await send('Page.bringToFront', {}, sid); await sleep(300);
+    const back = await ev(`(() => { const c = document.querySelector('[data-id="y1"]'); return { beat: c.classList.contains('beat'), vibe: document.body.dataset.vibe }; })()`);
+    ok('…and back to Balanced, the glow goes away', !back.beat && back.vibe === 'balanced', JSON.stringify(back));
+
+    // a new accent (a new song's cover, a new theme) fades in, it does not jump
+    const fade = await ev(`(async () => { const r = document.documentElement; r.style.setProperty('--accent', '#ff0000'); await new Promise(x => setTimeout(x, 30)); const mid = getComputedStyle(r).getPropertyValue('--accent').trim(); await new Promise(x => setTimeout(x, 2200)); return { mid, end: getComputedStyle(r).getPropertyValue('--accent').trim() }; })()`);
+    ok('a new accent fades in over a second or two (no jump)', fade.mid !== 'rgb(255, 0, 0)' && fade.end === 'rgb(255, 0, 0)', JSON.stringify(fade));
+    // pictures are kept outside the saved board (a short reference there), and come back after a reload
+    await sleep(800);
+    const raw = await ev(`chrome.storage.local.get('homeboard:v1').then(r => { const t = JSON.stringify(r['homeboard:v1']); return { size: t.length, dataUrls: (t.match(/data:image\\//g) || []).length, refs: (t.match(/hbpic:/g) || []).length }; })`);
+    ok('the saved board keeps pictures as references, not the pictures', raw.dataUrls === 0 && raw.refs > 0, JSON.stringify(raw));
+    const errsBefore = await ev('window.__errs');
+    await send('Page.reload', {}, sid); await sleep(2800); await send('Page.bringToFront', {}, sid);
+    await ev(`window.__errs = ${JSON.stringify(errsBefore || [])}; addEventListener('error', e => __errs.push(String(e.message)))`);
+    const fr2 = await ev(`(() => { const p = document.querySelector('.pf'); return p && { img: !!p.querySelector('.pf-img')?.src.startsWith('data:image') }; })()`);
+    ok('…and the frame shows its picture again after a reload', fr2 && fr2.img, JSON.stringify(fr2));
     const errs = await ev('window.__errs');
     ok('no errors on the page', !errs.length, JSON.stringify(errs));
   } catch (e) { ok('no exceptions', false, e.stack); }

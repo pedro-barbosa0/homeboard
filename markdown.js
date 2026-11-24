@@ -137,7 +137,7 @@ function fromHtml(html) {
   const walk = (node, ctx) => {
     let out = '';
     for (const k of node.childNodes) {
-      if (k.nodeType === 3) { out += k.textContent.replace(/ /g, ' '); continue; }
+      if (k.nodeType === 3) { out += k.textContent.replace(/\u00a0/g, ' '); continue; }
       if (k.nodeType !== 1) continue;
       const tag = k.tagName, inner = () => walk(k, ctx);
       if (tag === 'BR') out += '\n';

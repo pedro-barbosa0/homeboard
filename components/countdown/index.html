@@ -1,0 +1,38 @@
+<!-- Countdown: days, hours and minutes to a date you pick (kept with the card through homeboard.save). -->
+<style>
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4em; text-align: center; padding: 8px; box-sizing: border-box; }
+  .what { font-weight: 600; font-size: min(6vw, 9vh); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .left { display: flex; gap: .6em; font-variant-numeric: tabular-nums; }
+  .left div { display: flex; flex-direction: column; align-items: center; }
+  .left b { font-size: min(14vw, 26vh); font-weight: 250; line-height: 1; color: var(--accent, #7aa2ff); }
+  .left span { font-size: min(3.6vw, 6vh); color: var(--muted, #999); text-transform: uppercase; letter-spacing: .08em; }
+  form { display: none; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  body.setting form { display: flex; } body.setting .left, body.setting .what { display: none; }
+  input, button { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border, #444); background: var(--surface, #222); color: var(--text, #eee); }
+  button { cursor: pointer; } .hint { font-size: 11px; color: var(--muted, #999); }
+</style>
+<div class="what" id="what"></div>
+<div class="left" id="left"></div>
+<form id="f"><input id="name" placeholder="What is coming" maxlength="40"><input id="day" type="datetime-local" required><button>Start</button></form>
+<div class="hint" id="hint">click to change</div>
+<script>
+  const s = () => homeboard.settings;
+  function show(now) {
+    const t = Date.parse(s().when || '');
+    if (!t) { document.body.classList.add('setting'); return; }
+    document.getElementById('what').textContent = s().name || 'Countdown';
+    let d = Math.max(0, t - now.getTime()) / 60000;
+    const parts = [[Math.floor(d / 1440), 'days'], [Math.floor(d % 1440 / 60), 'hours'], [Math.floor(d % 60), 'min']];
+    document.getElementById('left').innerHTML = parts.map(([v, u]) => `<div><b>${v}</b><span>${u}</span></div>`).join('');
+  }
+  document.getElementById('f').addEventListener('submit', e => {
+    e.preventDefault();
+    homeboard.save({ name: document.getElementById('name').value.trim(), when: document.getElementById('day').value });
+    document.body.classList.remove('setting'); show(new Date());
+  });
+  document.getElementById('left').addEventListener('click', () => {
+    document.getElementById('name').value = s().name || ''; document.getElementById('day').value = s().when || '';
+    document.body.classList.add('setting');
+  });
+  homeboard.on('time', show);
+</script>

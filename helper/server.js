@@ -195,13 +195,27 @@ async function appList(fresh) {
   startApps = { at: Date.now(), list: apps.filter(a => a && a.id && a.name) };
   return startApps.list;
 }
+/* App icons: in memory, and on disk (TEMPhomeboard-icons) so a restart of the helper does not start Windows'
+   icon reading again for icons it already has. A missing icon is remembered too (as an empty file). */
 const icons = new Map();
+const iconDir = path.join(os.tmpdir(), 'homeboard-icons');
+const iconFile = key => path.join(iconDir, require('crypto').createHash('sha1').update(key).digest('hex') + '.png');
 async function iconsFor(targets, size) {
   const want = [...new Set(targets)].filter(t => typeof t === 'string' && t && t.length < 600).slice(0, 60);
+  for (const t of want) {
+    const key = size + '|' + t;
+    if (icons.has(key)) continue;
+    try { icons.set(key, (await fsp.readFile(iconFile(key))).toString('base64')); } catch { /* not on disk yet */ }
+  }
   const missing = want.filter(t => !icons.has(size + '|' + t));
   if (missing.length) {
     const { icons: got } = await bridgeAsk({ op: 'icons', targets: missing, size }, 30000);
-    for (const t of missing) icons.set(size + '|' + t, (got && got[t]) || '');
+    await fsp.mkdir(iconDir, { recursive: true }).catch(() => {});
+    for (const t of missing) {
+      const key = size + '|' + t, b64 = (got && got[t]) || '';
+      icons.set(key, b64);
+      fsp.writeFile(iconFile(key), Buffer.from(b64, 'base64')).catch(() => {});
+    }
     if (icons.size > 2000) icons.clear();
   }
   return Object.fromEntries(want.map(t => [t, icons.get(size + '|' + t) ? 'data:image/png;base64,' + icons.get(size + '|' + t) : '']));
@@ -236,7 +250,13 @@ function belongs(w, item, strict) {
   return !!item.name && String(w.title).toLowerCase().includes(String(item.name).toLowerCase());
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function screens() { return (await bridgeAsk({ op: 'screens' })).screens; }
+let screenCache = null;                               // { at, list }: screens change rarely; asked again after 30 s
+async function screens() {
+  if (screenCache && Date.now() - screenCache.at < 30000) return screenCache.list;
+  const list = (await bridgeAsk({ op: 'screens' })).screens;
+  screenCache = { at: Date.now(), list };
+  return list;
+}
 function zoneRect(scr, item) {                         // a zone is a part of a screen's work area, in fractions
   const s = scr[Math.min(scr.length - 1, Math.max(0, +item.screen || 0))] || scr[0];
   const z = item.zone || { x: 0, y: 0, w: 1, h: 1 }, f = v => Math.min(1, Math.max(0, +v || 0));

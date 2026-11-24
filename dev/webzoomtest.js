@@ -1,6 +1,6 @@
 // Website windows: zooming from inside the site (Ctrl + scroll, Ctrl + plus / 0), and coming back to the same
 // page and scroll position after the board is opened again. Run from PowerShell:
-//   node dev/webzoomtest.js C:\Users\Pedro\Homeboard <new empty profile folder>
+//   node dev/webzoomtest.js C:\path\to\Homeboard <new empty profile folder>
 const { spawn } = require('child_process');
 const http = require('http');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
@@ -103,7 +103,7 @@ const server = http.createServer((req, res) => {
       const { sessionId: fs2 } = await send('Target.attachToTarget', { targetId: frames[0].targetId, flatten: true });
       send('Page.crash', {}, fs2).catch(() => {});
       seen.one = -1; seen.two = -1;
-      for (let i = 0; i < 40 && seen.one < 0 && seen.two < 0; i++) await sleep(1000);
+      for (let i = 0; i < 60 && seen.one < 0 && seen.two < 0; i++) { if (i % 5 === 0) await send('Page.bringToFront', {}, sid); await sleep(1000); }   // (the board heals only while it is on screen)
       ok('a website window whose page crashed is loaded again by itself', seen.one >= 0 || seen.two >= 0, JSON.stringify(seen) + ' ' + JSON.stringify(await ev('({ hud: document.querySelector("#hud")?.textContent, toast: document.querySelector("#toast")?.textContent, frames: document.querySelectorAll("iframe").length, vis: document.visibilityState })')) + ' targets ' + JSON.stringify((await send('Target.getTargets')).targetInfos.filter(t => t.type === 'iframe').map(t => t.url)));
     } else ok('a website window whose page crashed is loaded again by itself', false, 'no frame to crash');
   } catch (e) { ok('no exceptions', false, e.stack); }

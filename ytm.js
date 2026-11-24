@@ -32,18 +32,23 @@ function state() {
   };
 }
 
-let last = '', dead = false;
+/* Sends only when something changes: the song, play / pause, volume, like, or the time not following on (a seek, a
+   stall). The board works out the time in between itself, so a playing song is not a message every second. */
+let last = '', dead = false, sentAt = 0, sentTime = 0, sentPlaying = false;
 function report(force) {
   if (dead) return;
-  const s = state(), key = JSON.stringify({ ...s, time: Math.floor(s.time) });
-  if (!force && key === last) return;
-  last = key;
+  const s = state(), key = JSON.stringify({ ...s, time: 0 });
+  const expect = sentTime + (sentPlaying ? (Date.now() - sentAt) / 1000 : 0);
+  const jumped = Math.abs(s.time - expect) > 2;
+  if (!force && key === last && !jumped) return;
+  last = key; sentAt = Date.now(); sentTime = s.time; sentPlaying = s.playing;
   try { api.runtime.sendMessage({ homeboard: 'ytm', state: s }).catch(() => {}); }
   catch { dead = true; clearInterval(beat); }        // Homeboard was reloaded or removed: stop quietly
 }
 
 const beat = setInterval(() => report(false), 1000);
-setInterval(() => report(true), 6000);               // so a board opened later finds this player
+setInterval(() => report(true), 10000);              // a heartbeat, so a board opened later finds this player
+document.addEventListener('seeked', () => report(true), true);
 document.addEventListener('play', () => report(true), true);
 document.addEventListener('pause', () => report(true), true);
 document.addEventListener('volumechange', () => report(true), true);

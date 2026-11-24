@@ -92,3 +92,23 @@
     #f4f4f4;
   background-size: auto, 100% 60%, auto; background-repeat: repeat, no-repeat, repeat; background-position: 0 0, 0 18%, 0 0;
 }
+
+/* packs in the Tabacaria: the drawn ones and your own */
+.smoke-scene { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.smoke-shop-box { position: relative; z-index: 1; }
+.smoke-face { width: 58px; height: 92px; border-radius: 3px; object-fit: cover; box-shadow: inset -6px 0 10px rgba(0, 0, 0, .2), 0 6px 12px rgba(0, 0, 0, .45); margin-bottom: 4px; display: block; }
+.smoke-packitem { position: relative; cursor: pointer; }
+.smoke-packtools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.smoke-packitem:hover .smoke-packtools, .smoke-packitem:focus-within .smoke-packtools { opacity: 1; }
+.smoke-mini { border: 0; border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 11px; background: rgba(255, 255, 255, .85); color: #222; cursor: pointer; }
+.smoke-mini[data-sure="1"] { background: #d92d20; color: #fff; }
+.smoke-addpack { justify-content: center; border-style: dashed; border-color: rgba(255, 255, 255, .25); }
+.smoke-plus { width: 58px; height: 92px; border-radius: 4px; display: grid; place-items: center; font-size: 34px; color: #ddd; border: 2px dashed rgba(255, 255, 255, .35); margin-bottom: 4px; }
+.smoke-packform { display: flex; gap: 16px; align-items: center; padding: 14px; border-radius: 12px; background: rgba(255, 255, 255, .9); box-shadow: 0 10px 30px rgba(0, 0, 0, .25); }
+.smoke-packform-preview .smoke-face { width: 90px; height: 142px; }
+.smoke-packform-side { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.smoke-packform-side > input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, .2); }
+.smoke-packform-cols { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .85em; color: #444; }
+.smoke-packform-cols input { width: 34px; height: 26px; padding: 0; border: 1px solid rgba(0, 0, 0, .2); border-radius: 6px; background: none; }
+.smoke-packform-row { display: flex; gap: 8px; justify-content: flex-end; }
+.smoke-packform-row:first-of-type { justify-content: flex-start; }

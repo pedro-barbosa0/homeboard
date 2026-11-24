@@ -1,6 +1,6 @@
 // The view map: tiles of saved views from several boards, arranged in 2D; Ctrl+arrows go to the tile in that
 // direction; tiles can be dragged. Run from PowerShell:
-//   node dev/maptest.js C:\Users\Pedro\Homeboard <new empty profile folder> [screenshot folder]
+//   node dev/maptest.js C:\path\to\Homeboard <new empty profile folder> [screenshot folder]
 const { spawn } = require('child_process');
 const fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';

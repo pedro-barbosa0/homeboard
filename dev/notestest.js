@@ -1,6 +1,6 @@
 // Markdown notes, Markdown export, .md files dropped as notes, saved views, the locked view, and
 // website windows that show only the site. Run from PowerShell:
-//   node dev/notestest.js C:\Users\Pedro\Homeboard <new empty profile folder> [screenshot folder]
+//   node dev/notestest.js C:\path\to\Homeboard <new empty profile folder> [screenshot folder]
 const { spawn } = require('child_process');
 const fs = require('fs'), path = require('path');
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
@@ -105,6 +105,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     ok('a dropped .md file becomes a Markdown note', dropped.n === cardsBefore + 1 && dropped.title === 'reading list' && dropped.h2 === 'Dropped', JSON.stringify(dropped));
 
     // --- saved views ---
+    const settle = async () => { let a = '', b = (await viewNow()).t; for (let i = 0; i < 30 && a !== b; i++) { await sleep(150); a = b; b = (await viewNow()).t; } };   // the board glides: wait until it stops
     const viewNow = () => ev(`({ x: Math.round(document.querySelector('#world').style.transform.match(/translate\\(([-\\d.]+)px/)[1]), t: document.querySelector('#world').style.transform })`);
     await ev(`(() => { const r = document.querySelector('#zoom-views').getBoundingClientRect(); document.querySelector('#zoom-views').click(); })()`);
     await pick('Save this view');
@@ -112,10 +113,10 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     const home0 = await viewNow();
     await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 900, y: 650, deltaX: 0, deltaY: 900 }, sid);   // wander off
     await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 900, y: 650, deltaX: 700, deltaY: 0 }, sid);
-    await sleep(300);
+    await settle();
     const lost = await viewNow();
     await key('Home', 36);
-    await sleep(700);
+    await sleep(300); await settle();
     const back = await viewNow();
     st = await stored();
     ok('Home goes back to the start view', lost.t !== home0.t && back.t === home0.t && st.boards[0].views.length === 1 && st.boards[0].home === st.boards[0].views[0].id, `${home0.t} / ${lost.t} / ${back.t}`);
@@ -124,7 +125,7 @@ const ok = (name, pass, info = '') => { results.push(!!pass); console.log((pass 
     await ev(`document.querySelector('#zoom-views').click()`); await pick('Save this view');
     await sleep(200);
     await key('Home', 36); await sleep(600);
-    await key('2', 50, { code: 'Digit2' }); await sleep(700);
+    await key('2', 50, { code: 'Digit2' }); await sleep(300); await settle();
     const second = await viewNow();
     ok('keys 1–9 go to the saved views', second.t !== back.t && (await stored()).boards[0].views.length === 2, second.t);
 

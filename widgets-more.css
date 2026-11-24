@@ -29,7 +29,7 @@
 .clock-widget { container-type: size; align-items: center; justify-content: center; gap: 6px; color: var(--text); user-select: none; }
 .clock-face { width: min(96cqw, 84cqh); aspect-ratio: 1; }
 .clock-face svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .4)); }
-.clock-face.glow svg { filter: drop-shadow(0 0 5px #00f0ff) drop-shadow(0 0 14px rgba(255, 43, 214, .65)); }
+.clock-face.glow svg { filter: drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 65%, transparent)); }
 .clock-digits { display: flex; align-items: baseline; gap: 1.5cqw; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
 .clock-time { font-size: min(31cqw, 62cqh); letter-spacing: -.02em; }
 .clock-sec { font-size: min(11cqw, 22cqh); opacity: .6; }
@@ -239,3 +239,141 @@
 .pf[data-style="none"] .pf-mat { background: transparent; border-radius: var(--radius); }
 .pf[data-style="none"] .pf-img { border-radius: var(--radius); box-shadow: 0 14px 30px color-mix(in srgb, var(--pf-tint, #000) 55%, rgba(0, 0, 0, .4)); }
 .pf:not([data-style="polaroid"]) .pf-cap { position: absolute; left: 0; right: 0; bottom: -20px; }
+
+/* ---------- picture frame: devices (drawn, no brands) ---------- */
+.pf .dev { position: relative; margin: auto; width: min(100cqw, calc(100cqh * var(--r, 1))); aspect-ratio: var(--r, 1); box-sizing: border-box; display: flex; flex-direction: column; container-type: size; }
+.dev-screen { position: relative; overflow: hidden; background: #000; }
+.dev-screen .pf-mat { position: absolute; inset: 0; padding: 0; background: #000; box-shadow: none; }
+.dev-screen .pf-img { box-shadow: none; }
+.dev-btn { border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; background: none; }
+/* old screens: scanlines, a curve, a glow */
+.dev-tv .dev-screen::after, .dev-crt .dev-screen::after, .dev-arcade .dev-screen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px), radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0,0,0,.55));
+  box-shadow: inset 0 0 22px rgba(0,0,0,.7), inset 0 0 2px rgba(255,255,255,.3);
+}
+.pf.playing .dev-tv .pf-img, .pf.playing .dev-crt .pf-img, .pf.playing .dev-arcade .pf-img { animation: dev-flicker 4s steps(1) infinite; }
+@keyframes dev-flicker { 0%, 97% { filter: saturate(1.15) contrast(1.05); } 98% { filter: saturate(1.15) contrast(1.05) brightness(1.15); } }
+
+/* click-wheel music player */
+.dev-player { --r: .61; border-radius: 9% / 6%; padding: 7% 7% 0; background: linear-gradient(160deg, #6c6c70, #3b3b3f 45%, #2a2a2d); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 6px rgba(0,0,0,.4), 0 14px 30px rgba(0,0,0,.5); }
+.dev-player .dev-screen { aspect-ratio: 1.33; border-radius: 3%; border: 2px solid #111; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.dev-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 5% 6% 4%; background: linear-gradient(transparent, rgba(0,20,30,.85)); color: #dfe9ee; font: 600 clamp(7px, 3.6cqw, 12px)/1 ui-monospace, Consolas, monospace; }
+.dev-bar i { display: block; height: 4px; border-radius: 2px; background: #ff3d3d; box-shadow: 0 0 6px rgba(255,61,61,.6); width: 0; transition: width .5s linear; }
+.dev-bar { --track: rgba(255,255,255,.25); }
+.dev-bar::before { content: ""; position: absolute; left: 6%; right: 6%; top: 5%; height: 4px; border-radius: 2px; background: var(--track); }
+.dev-bar i { position: relative; }
+.dev-times { display: flex; justify-content: space-between; margin-top: 5px; }
+.dev-wheel { position: relative; width: 74%; aspect-ratio: 1; margin: 10% auto 0; border-radius: 50%; background: radial-gradient(circle, #3a3a3e 0 34%, #2b2b2f 35% 100%); box-shadow: inset 0 2px 4px rgba(255,255,255,.08), inset 0 -3px 8px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.12); color: #e9e9ec; }
+.dev-wheel .dev-btn { position: absolute; font-size: clamp(8px, 5cqw, 14px); font-weight: 700; letter-spacing: .04em; opacity: .9; }
+.dev-wheel .dev-btn:hover { opacity: 1; color: #fff; }
+.dev-wheel .menu { top: 9%; left: 50%; transform: translateX(-50%); }
+.dev-wheel .prev { left: 9%; top: 50%; transform: translateY(-50%); }
+.dev-wheel .next { right: 9%; top: 50%; transform: translateY(-50%); }
+.dev-wheel .pp { bottom: 9%; left: 50%; transform: translateX(-50%); font-size: clamp(7px, 4cqw, 12px); }
+.dev-wheel .hub { left: 33%; top: 33%; width: 34%; height: 34%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #6b6b70, #48484c 70%); box-shadow: inset 0 1px 2px rgba(255,255,255,.2), 0 1px 3px rgba(0,0,0,.6); }
+.dev-wheel .hub:active { transform: scale(.97); }
+
+/* wooden retro TV */
+.dev-tv { --r: 1.55; flex-direction: row; gap: 3%; padding: 5%; border-radius: 6%; background: repeating-linear-gradient(92deg, rgba(0,0,0,.08) 0 2px, transparent 2px 9px), linear-gradient(160deg, #9a6a3a, #6b4423 45%, #4e2f17); box-shadow: inset 0 2px 0 rgba(255,255,255,.18), inset 0 -4px 10px rgba(0,0,0,.45), 0 16px 34px rgba(0,0,0,.55); }
+.dev-tv .dev-screen { flex: 1; border-radius: 9% / 12%; border: 6px solid #b9b5ad; box-shadow: 0 0 0 3px #3a3631, inset 0 0 0 2px #222; }
+.dev-tv-side { width: 24%; border-radius: 6%; padding: 6% 5%; display: flex; flex-direction: column; align-items: center; gap: 7%; background: linear-gradient(#d8d4cc, #a9a59d); box-shadow: inset 0 1px 0 #fff, inset 0 -2px 4px rgba(0,0,0,.25); }
+.dev-tv-dial { width: 80%; height: 9%; border-radius: 3px; background: linear-gradient(90deg, #222, #555); box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
+.dev-tv-side .knob { width: 62%; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(from 20deg, #2b2b2b, #6a6a6a, #2b2b2b, #5a5a5a, #2b2b2b); box-shadow: 0 2px 4px rgba(0,0,0,.5), inset 0 0 0 3px #1a1a1a; position: relative; }
+.dev-tv-side .knob::after { content: ""; position: absolute; left: 47%; top: 8%; width: 6%; height: 30%; background: #ddd; border-radius: 2px; }
+.dev-tv-side .knob:hover { filter: brightness(1.2); }
+.dev-grille { width: 86%; flex: 1; border-radius: 4px; background: repeating-linear-gradient(0deg, #8f8b83 0 2px, #c9c5bc 2px 4px); }
+.dev-tv-side .power { width: 34%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f04, #900); box-shadow: 0 0 6px rgba(255,0,60,.6); }
+.pf:not(.playing) .dev-tv-side .power { background: radial-gradient(circle at 40% 35%, #555, #222); box-shadow: none; }
+
+/* small CRT monitor */
+.dev-crt { --r: 1.12; padding: 5% 6% 0; border-radius: 6% / 7%; background: linear-gradient(170deg, #b9bcc2, #8e9198 50%, #6f7279); box-shadow: inset 0 2px 0 rgba(255,255,255,.5), inset 0 -4px 10px rgba(0,0,0,.35), 0 16px 34px rgba(0,0,0,.5); }
+.dev-crt-vents { position: absolute; left: 25%; right: 25%; top: 1.5%; height: 3%; border-radius: 2px; background: repeating-linear-gradient(90deg, #4b4e54 0 3px, transparent 3px 6px); }
+.dev-crt .dev-screen { flex: 1; border-radius: 10% / 13%; border: 8px solid #2f3136; box-shadow: inset 0 0 0 2px #111, 0 0 0 2px #9fa2a8; }
+.dev-crt-front { display: flex; align-items: center; justify-content: center; gap: 3%; height: 15%; }
+.dev-crt-front .small { width: 9%; height: 46%; border-radius: 3px; background: linear-gradient(#5b5e65, #393b40); color: #e8e8e8; font-size: clamp(6px, 2.6cqw, 10px); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.dev-crt-front .small:active { transform: translateY(1px); }
+.dev-led { width: 2.4%; aspect-ratio: 1; border-radius: 50%; background: #2a4; box-shadow: 0 0 6px #3f6; margin-left: 4%; }
+.pf:not(.playing) .dev-led { background: #a52; box-shadow: 0 0 5px #f72; }
+
+/* arcade cabinet */
+.dev-arcade { --r: .52; padding: 0 9%; background: linear-gradient(90deg, #f2c200 0 5%, #151515 5% 95%, #f2c200 95%); border-radius: 4px; box-shadow: 0 16px 34px rgba(0,0,0,.5); }
+.dev-marquee { margin: 0 -6%; height: 13%; display: grid; place-items: center; padding: 0 6%; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font: 800 clamp(8px, 6cqw, 18px)/1 "Impact", "Arial Black", sans-serif; letter-spacing: .04em; color: #fff; text-shadow: 0 0 6px #ff9a00, 0 0 14px #ff4d00;
+  background: linear-gradient(180deg, #2b1a00, #4a2a00); border-bottom: 4px solid #f2c200; box-shadow: inset 0 -10px 20px rgba(255,140,0,.35); }
+.dev-arcade .dev-screen { aspect-ratio: 1.1; margin-top: 8%; border: 6px solid #050505; border-radius: 4px; box-shadow: 0 0 0 2px #333; }
+.dev-cp { position: relative; height: 13%; margin: 6% -10% 0; display: flex; align-items: center; justify-content: center; gap: 6%; background: linear-gradient(#f2c200, #c99f00); clip-path: polygon(4% 0, 96% 0, 100% 100%, 0 100%); }
+.dev-stick { width: 7%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #f55, #900); box-shadow: 0 3px 0 #222; margin-right: 6%; }
+.dev-cp .ab { width: 9%; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 3px 0 rgba(0,0,0,.45), inset 0 2px 2px rgba(255,255,255,.4); }
+.dev-cp .ab:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.45); }
+.dev-cp .red { background: #e3262e; } .dev-cp .yellow { background: #ffd400; } .dev-cp .blue { background: #2a6fdb; }
+.dev-cab-base { flex: 1; margin-top: 6%; display: flex; align-items: flex-start; justify-content: center; gap: 8%; padding-top: 10%; background: #0e0e0e; }
+.dev-coin { width: 10%; height: 14%; min-height: 10px; border-radius: 2px; background: linear-gradient(#a00, #500); box-shadow: inset 0 0 0 2px #222, 0 0 6px rgba(255,0,0,.4); }
+/* devices sit on their own: no caption under them */
+.pf .dev ~ .pf-cap, .pf:has(.dev) .pf-cap { display: none; }
+.pf .dev.dev-tv { flex-direction: row; align-items: stretch; }
+
+/* ---------- clock: more digital faces, and the music around it ---------- */
+.clock-widget { position: relative; --clock-tint: var(--accent); }
+.clock-music { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.clock-widget > :not(.clock-music) { position: relative; z-index: 1; }
+.clock-widget.music .clock-face { width: min(64cqw, 58cqh); }
+.clock-face { --clock-tint: var(--accent); }
+.clock-time b { font-weight: inherit; }
+.clock-time i { font-style: normal; }
+.clock-digits.led { --clock-tint: #ff453a; }
+/* flip clock: two dark cards, a split through the middle */
+.clock-digits.flip { --clock-tint: #e9e9ea; text-shadow: none; }
+.clock-digits.flip .clock-time { display: flex; align-items: center; gap: 2cqw; font-size: min(25cqw, 50cqh); letter-spacing: 0; }
+.clock-digits.flip b { position: relative; padding: .04em .1em; border-radius: .1em; color: #f1f1f2;
+  background: linear-gradient(#30323a 0 49.6%, #22242a 50.4%); box-shadow: 0 .05em .14em rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .08); }
+.clock-digits.flip b::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: max(1px, .012em); background: rgba(0, 0, 0, .7); }
+.clock-digits.flip i { opacity: .55; font-size: .6em; }
+.clock-digits.flip .clock-sec { padding: .1em .2em; border-radius: .2em; background: #22242a; color: #f1f1f2; opacity: .85; }
+/* nixie tubes: warm orange glow in glass */
+.clock-digits.nixie { --clock-tint: #ff9a3c; font-family: "Bahnschrift", "Segoe UI", sans-serif; font-weight: 300; text-shadow: none; }
+.clock-digits.nixie .clock-time { display: flex; gap: 1.2cqw; }
+.clock-digits.nixie b { padding: .02em .1em; border-radius: .35em .35em .12em .12em; color: #ffc27a; letter-spacing: .1em;
+  text-shadow: 0 0 .04em #fff1d6, 0 0 .12em #ff8a1c, 0 0 .3em #ff6a00, 0 0 .6em rgba(255, 90, 0, .55);
+  background: radial-gradient(ellipse at 50% 35%, rgba(255, 150, 60, .14), transparent 70%), linear-gradient(rgba(255, 255, 255, .07), rgba(0, 0, 0, .25));
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 160, .16), inset 0 -.1em .2em rgba(0, 0, 0, .4); }
+.clock-digits.nixie i { color: #ff9a3c; text-shadow: 0 0 .2em #ff6a00; }
+.clock-digits.nixie .clock-sec { color: #ffb067; text-shadow: 0 0 .2em #ff6a00; opacity: .8; }
+/* LCD watch: grey-green glass, dark segments */
+.clock-digits.lcd { --clock-tint: #c9d6b6; font-family: "Cascadia Mono", Consolas, monospace; color: #1d2a16; text-shadow: .03em .03em 0 rgba(0, 0, 0, .1);
+  padding: 4cqmin 6cqmin; border-radius: 3cqmin; background: linear-gradient(#bccaa9, #98a888); box-shadow: inset 0 .08em .2em rgba(0, 0, 0, .4), 0 .1em .3em rgba(0, 0, 0, .35); }
+.clock-digits.lcd .clock-sec { opacity: .75; }
+/* dot matrix: lit dots in the board's colour */
+.clock-digits.matrix { --clock-tint: var(--accent); font-family: "Arial Black", "Segoe UI Black", sans-serif; color: var(--accent); text-shadow: none;
+  filter: drop-shadow(0 0 .06em color-mix(in srgb, var(--accent) 80%, transparent)); }
+.clock-digits.matrix .clock-time, .clock-digits.matrix .clock-sec {
+  -webkit-mask: radial-gradient(circle, #000 0 46%, transparent 56%) 0 0 / .085em .085em; mask: radial-gradient(circle, #000 0 46%, transparent 56%) 0 0 / .085em .085em; }
+/* thin and big */
+.clock-digits.thin { font-weight: 200; letter-spacing: .01em; text-shadow: none; }
+.clock-digits.thin .clock-time { font-size: min(34cqw, 66cqh); }
+.clock-digits.thin .clock-sec { font-weight: 300; }
+/* neon tube: outlined digits that glow */
+.clock-digits.tube { --clock-tint: var(--accent); font-weight: 600; color: transparent; text-shadow: none;
+  -webkit-text-stroke: max(1.5px, .028em) var(--accent); filter: drop-shadow(0 0 .04em var(--accent)) drop-shadow(0 0 .18em color-mix(in srgb, var(--accent) 70%, transparent)); }
+.clock-digits.tube .clock-sec { opacity: .8; }
+
+/* ---------- sound visualiser backgrounds ---------- */
+.viz { border-radius: var(--radius, 12px); overflow: hidden; }
+.viz[data-bg="card"] { background: var(--surface); box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px var(--border); }
+.viz[data-bg="glass"] { background: color-mix(in srgb, var(--surface) 42%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .08), 0 12px 30px rgba(0, 0, 0, .35); }
+.viz[data-bg="dark"] { background: radial-gradient(120% 90% at 50% 45%, #17181f, #040406); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 14px 34px rgba(0, 0, 0, .55); }
+.viz[data-bg="glow"] { background: radial-gradient(75% 95% at 50% 105%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 72%), color-mix(in srgb, var(--surface) 75%, #000);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent), 0 12px 30px rgba(0, 0, 0, .45); }
+.viz[data-bg="cover"] { background: #000; box-shadow: 0 12px 30px rgba(0, 0, 0, .5); }
+.viz[data-bg="cover"]::before { content: ""; position: absolute; inset: -30px; background: var(--viz-cover, none) center / cover no-repeat; filter: blur(26px) saturate(1.5) brightness(.5); }
+.viz[data-bg="cover"]::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 40%, rgba(0, 0, 0, .35)); }
+.viz canvas, .viz-hint { z-index: 1; }
+/* each digital face sized to fit its own letters (some fonts and the tiles are wider than plain digits) */
+.clock-digits.flip .clock-time { font-size: min(21cqw, 48cqh); }
+.clock-digits.nixie .clock-time { font-size: min(23cqw, 52cqh); }
+.clock-digits.matrix .clock-time { font-size: min(22cqw, 52cqh); }
+.clock-digits.lcd .clock-time, .clock-digits.led .clock-time { font-size: min(24cqw, 52cqh); }
+.clock-digits.tube .clock-time { font-size: min(27cqw, 58cqh); }
+.clock-digits.thin .clock-time { font-size: min(30cqw, 64cqh); }
+.clock-digits { max-width: 96cqw; }

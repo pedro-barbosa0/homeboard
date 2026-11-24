@@ -58,18 +58,23 @@ body.dropping #canvas { box-shadow: inset 0 0 0 3px var(--accent); }
 #canvas {
   position: fixed; inset: 0; overflow: hidden;
   cursor: grab; touch-action: none;
-  background-position: var(--gx, 0) var(--gy, 0);
+}
+/* the dots / grid: a layer one step larger than the screen that slides with the board (moved by the GPU, never
+   repainted while you pan); app.js applyView sets --tx / --ty to the offset within one step */
+#canvas::before {
+  content: ""; position: absolute; left: calc(var(--gs, 24px) * -1); top: calc(var(--gs, 24px) * -1); right: 0; bottom: 0; pointer-events: none;
   background-size: var(--gs, 24px) var(--gs, 24px);
+  transform: translate3d(var(--tx, 0px), var(--ty, 0px), 0); will-change: transform;
 }
 body.panning #canvas { cursor: grabbing; }
-body[data-pattern="dots"] #canvas {
+body[data-pattern="dots"] #canvas::before {
   background-image: radial-gradient(circle at 1.5px 1.5px, var(--dot) 1.2px, transparent 1.7px);
 }
-body[data-pattern="grid"] #canvas {
+body[data-pattern="grid"] #canvas::before {
   background-image: linear-gradient(var(--dot) 1px, transparent 1px),
                     linear-gradient(90deg, var(--dot) 1px, transparent 1px);
 }
-body[data-pattern="lines"] #canvas {
+body[data-pattern="lines"] #canvas::before {
   background-image: linear-gradient(var(--dot) 1px, transparent 1px);
 }
 #world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
@@ -333,6 +338,19 @@ body.connecting, body.connecting * { cursor: crosshair !important; }
   background: none; cursor: pointer;
 }
 #themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+/* Customize: a fold for the colours most people never touch */
+.set-more { margin-top: 4px; }
+.set-more > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; min-height: 30px;
+  color: var(--muted); font-size: .88em; user-select: none;
+}
+.set-more > summary::-webkit-details-marker { display: none; }
+.set-more > summary::before { content: '›'; display: inline-block; transition: transform .18s ease; font-size: 1.2em; line-height: 1; }
+.set-more[open] > summary::before { transform: rotate(90deg); }
+.set-more > summary:hover { color: var(--text); }
+#settings .style-row + .style-label, #glass-opts:not(:empty) { margin-top: 8px; }
+#glass-opts:not(:empty) { padding: 2px 0 6px; }
+#kits .kit-grid { margin-bottom: 12px; }
 .theme {
   display: grid; gap: 5px; padding: 0; border: 0; background: none; cursor: pointer;
   font-size: .78em; color: var(--muted); text-align: center;
@@ -628,7 +646,8 @@ body[data-material="liquid"] .card:not(.bare), body[data-material="liquid"] :is(
 }
 body[data-theme="paper"][data-material="liquid"] .card:not(.bare), body[data-theme="cork"][data-material="liquid"] .card:not(.bare) { border-color: rgba(255, 255, 255, .7); }
 body[data-material="paper"] .card:not(.bare), body[data-material="paper"] :is(.pill, #menu, #np-panel, #finder) {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"), var(--glass, var(--card-bg, var(--raise)));
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+              linear-gradient(170deg, rgba(255, 255, 255, .05), transparent 40%), var(--card-bg, var(--surface));   /* paper is opaque card stock: the glass colour never applies */
   -webkit-backdrop-filter: none; backdrop-filter: none; border: 0;
   box-shadow: 0 1px 1px rgba(0, 0, 0, .14), 0 3px 6px rgba(0, 0, 0, .12), 0 12px 24px rgba(0, 0, 0, .14);
 }
@@ -674,3 +693,80 @@ body.ambient.ambient-still, body.ambient.ambient-still * { cursor: none !importa
 #scene-art { position: absolute; inset: -80px; background: center / cover no-repeat; filter: blur(70px) saturate(1.5) brightness(.5); transform: scale(1.1); transition: background-image .8s ease; }
 #scene-art[hidden] { display: none; }
 body[data-theme="paper"] #scene-art, body[data-theme="cork"] #scene-art { filter: blur(70px) saturate(1.3) brightness(1.05) opacity(.55); }
+
+/* the box drawn with Shift + drag to select several cards */
+.select-box { position: fixed; z-index: 70; pointer-events: none; border: 1.5px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+body.boxing, body.boxing * { cursor: crosshair !important; }
+
+/* popups over the board (menus, Now playing, search) stay readable on every glass: still glassy at the edges, but dense
+   enough that cards and panels behind never show through as text */
+body[data-material]:not([data-material="solid"]):not([data-material="paper"]) :is(#menu, #np-panel, #finder) {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .06), transparent 40%), color-mix(in srgb, var(--raise) 90%, transparent);
+  -webkit-backdrop-filter: blur(34px) saturate(1.6); backdrop-filter: blur(34px) saturate(1.6);
+}
+
+/* Frost: the frosted glass at the edges of the screen (a real blur of what is behind); --reach follows the music */
+#fx-frost { --reach: 20%; position: fixed; inset: 0; z-index: 84; pointer-events: none;
+  -webkit-backdrop-filter: blur(3px) saturate(1.2) brightness(1.06); backdrop-filter: blur(3px) saturate(1.2) brightness(1.06);   /* soft: text under it stays readable */
+  background: radial-gradient(ellipse at center, transparent calc(100% - var(--reach) * 1.1), rgba(235, 246, 255, .10) 100%);
+  -webkit-mask: radial-gradient(ellipse at center, transparent calc(100% - var(--reach)), #000 calc(100% - var(--reach) * .4));
+  mask: radial-gradient(ellipse at center, transparent calc(100% - var(--reach)), #000 calc(100% - var(--reach) * .4));
+  transition: opacity .3s ease; }
+#fx-frost[hidden] { display: none; }
+
+/* Intensity (app.js VIBES): the backdrop's colour, resting decorations when Calm, music cards glowing on the beat */
+#backdrop { filter: saturate(var(--vibe-sat, 1)) brightness(var(--vibe-light, 1)); }
+body[data-vibe="calm"] .ytm .ytm-head, body[data-vibe="calm"] .ytm .ytm-head::after, body[data-vibe="calm"] .ytm .ytm-bar i { animation-play-state: paused !important; }
+body[data-vibe] #world > .card.beat {
+  box-shadow: 0 0 calc(var(--beat, 0) * 46px) calc(var(--beat, 0) * 3px) color-mix(in srgb, var(--accent) calc(var(--beat, 0) * 80%), transparent), 0 14px 40px rgb(0 0 0 / .3);
+}
+.vibe-pick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 3px; border-radius: 12px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.vibe-opt { all: unset; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 2px 6px; border-radius: 9px; cursor: pointer;
+  font-size: .74em; color: var(--muted); transition: background .15s ease, color .15s ease; }
+.vibe-opt:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.vibe-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.vibe-opt.on { color: var(--text); background: color-mix(in srgb, var(--accent) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+.vibe-glyph { display: flex; align-items: flex-end; gap: 2px; height: 14px; }
+.vibe-glyph b { width: 3px; border-radius: 2px; background: color-mix(in srgb, currentColor 25%, transparent); }
+.vibe-glyph b:nth-child(1) { height: 4px; } .vibe-glyph b:nth-child(2) { height: 6.5px; } .vibe-glyph b:nth-child(3) { height: 9px; } .vibe-glyph b:nth-child(4) { height: 11.5px; } .vibe-glyph b:nth-child(5) { height: 14px; }
+.vibe-glyph b.lit { background: var(--accent); }
+.vibe-opt[data-vibe="wild"].on .vibe-glyph b.lit { background: linear-gradient(#ff5fa2, #ffb347); }
+.vibe-about { margin: 4px 0 10px; }
+#np-panel .vibe-pick { margin: 2px 0 2px; }
+
+/* cards outside the window rest (app.js onScreen): no animation runs there, nothing is repainted for nobody */
+.card.offscreen *, .card.offscreen *::before, .card.offscreen *::after { animation-play-state: paused !important; }
+
+/* a backing for a frameless card (Background in its menu): the widget keeps its own look, on a surface that matches
+   the board's material */
+.card.bare[data-surface] > .card-body { border-radius: var(--radius); }
+.card.bare[data-surface="card"] > .card-body { background: color-mix(in srgb, var(--card-bg, var(--surface)) var(--card-alpha, 100%), transparent); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.card.bare[data-surface="glass"] > .card-body { background: color-mix(in srgb, var(--surface) 40%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, .12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 12px 30px rgba(0, 0, 0, .3); }
+.card.bare[data-surface="dark"] > .card-body { background: radial-gradient(120% 100% at 50% 30%, #16171d, #050507); border: 1px solid rgba(255, 255, 255, .06); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); }
+
+/* colours that follow the music fade from one song to the next (registered as colours so the browser can blend them) */
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #7aa2ff; }
+@property --cover-a { syntax: '<color>'; inherits: true; initial-value: #7a5cff; }
+@property --cover-b { syntax: '<color>'; inherits: true; initial-value: #1fd1a4; }
+@property --cover-c { syntax: '<color>'; inherits: true; initial-value: #ffd29a; }
+:root { transition: --accent 1.6s ease, --cover-a 1.8s ease, --cover-b 1.8s ease, --cover-c 1.8s ease; }
+/* (--glass and the widgets' --ytm-tint / --pf-tint stay unregistered: their var() fallbacks matter) */
+.ytm-back { transition: background-image 1.4s ease; }
+#scene-art { transition: background-image 1.6s ease; }
+
+/* galleries: a menu of looks shown as tiles (app/02-ui.js openGallery) */
+#menu.gallery { width: min(660px, calc(100vw - 16px)); max-width: none; padding: 10px; }
+.gallery-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 8px; }
+.gallery-head b { font-size: .95em; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: min(70vh, 640px); overflow: auto; }
+.gallery-info { grid-column: 1 / -1; font-size: .78em; color: var(--muted); padding: 4px 2px 0; }
+.gallery-tile { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 11px; cursor: pointer;
+  border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 3%, transparent); transition: border-color .15s, background .15s, transform .15s; }
+.gallery-tile:hover, .gallery-tile:focus-visible { border-color: color-mix(in srgb, var(--accent) 70%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); transform: translateY(-1px); }
+.gallery-tile.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.gallery-tile > span { font-size: .8em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gallery-pic { position: relative; height: 100px; border-radius: 8px; overflow: hidden; pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 30%, color-mix(in srgb, var(--surface) 80%, #fff 4%), color-mix(in srgb, var(--bg) 90%, #000)); }
+.gallery-card { position: absolute !important; left: 50%; top: 50%; transform-origin: 50% 50%; pointer-events: none; box-shadow: none !important; }
+.gallery-card:not(.bare) { border-radius: var(--radius); }

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Homeboard",
-  "version": "1.11.0",
-  "description": "A personal board for your new tab: notes, to-do lists, quick links, website windows and strings between them.",
+  "version": "2.0.0",
+  "description": "Your new tab, the way you like it: a board of notes, to-dos, links, live websites, music and widgets, styled your way.",
   "chrome_url_overrides": {
     "newtab": "index.html"
   },
@@ -86,5 +86,10 @@
       "id": "homeboard@localhost",
       "strict_min_version": "128.0"
     }
+  },
+  "sandbox": {
+    "pages": [
+      "component.html"
+    ]
   }
 }

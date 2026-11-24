@@ -58,9 +58,11 @@ document.addEventListener('scroll', e => {
   clearTimeout(timer);
   timer = setTimeout(() => send('where', { path: main ? '' : pathOf(t), x: Math.round(t.scrollLeft), y: Math.round(t.scrollTop) }), 600);
 }, { capture: true, passive: true });
-setInterval(() => {                                     // pages that change address without loading (mail, music, maps)
-  if (location.href !== lastUrl) { lastUrl = location.href; send('where', { path: '', x: 0, y: 0 }); }
-}, 1000);
+// pages that change address without loading (mail, music, maps): Edge says so (Navigation API); older: a slow check
+const moved = () => { if (location.href !== lastUrl) { lastUrl = location.href; send('where', { path: '', x: 0, y: 0 }); } };
+if (window.navigation && typeof navigation.addEventListener === 'function') navigation.addEventListener('currententrychange', () => setTimeout(moved, 0));
+else setInterval(moved, 2000);
+addEventListener('popstate', moved); addEventListener('hashchange', moved);
 for (const ev of ['wheel', 'keydown', 'pointerdown', 'touchstart']) addEventListener(ev, () => { touched = true; }, { capture: true, passive: true });
 
 /* coming back: scroll to where you were, waiting for slow pages to grow, and never against your own scrolling */
@@ -81,7 +83,15 @@ function restore(at) {
 /* sign-in pages that refuse to work inside another page, whatever we do */
 const SIGNIN = /^(accounts\.google\.com|login\.live\.com|login\.microsoftonline\.com|appleid\.apple\.com|account\.apple\.com)$/i;
 const hello = () => send(SIGNIN.test(location.hostname) ? 'signin' : 'ok').then(r => { if (r && r.restore) restore(r.restore); });
-setInterval(() => send('alive'), 4000);
+/* alive: a port to the board stays open while the page lives (a crash closes it at once); a quiet ping on it now and
+   then also catches a page that hangs. Nothing is broadcast to other tabs. */
+let port = null;
+function connect() {
+  try { port = api.runtime.connect({ name: 'hb-frame:' + m[1] }); } catch { port = null; return; }   // Homeboard was reloaded
+  port.onDisconnect.addListener(() => { port = null; });
+}
+connect();
+setInterval(() => { if (!port) connect(); else { try { port.postMessage(1); } catch { port = null; } } }, 15000);
 
 /* ---- what plays here, for "Now playing" on the board (which can also pause and play it) ---- */
 const medias = () => [...document.querySelectorAll('video, audio')];
@@ -96,8 +106,11 @@ function nowState() {
 }
 let told = '';
 const tellMedia = () => { const st = nowState(), k = JSON.stringify(st); if (k !== told) { told = k; send('media', { media: st }); } };
-for (const ev of ['play', 'playing', 'pause', 'ended', 'emptied', 'volumechange', 'loadedmetadata']) document.addEventListener(ev, () => setTimeout(tellMedia, 60), true);
-setInterval(tellMedia, 2500);                            // the next song changes only the title
+// the media events say most of it; a slow check runs only while the page has media (the next song changes only the title)
+let mediaTimer = 0;
+const watchMedia = () => { if (!mediaTimer) mediaTimer = setInterval(() => { if (!medias().length) { clearInterval(mediaTimer); mediaTimer = 0; } tellMedia(); }, 5000); };
+for (const ev of ['play', 'playing', 'pause', 'ended', 'emptied', 'volumechange', 'loadedmetadata']) document.addEventListener(ev, () => { watchMedia(); setTimeout(tellMedia, 60); }, true);
+setTimeout(() => { if (medias().length) { watchMedia(); tellMedia(); } }, 1500);
 api.runtime.onMessage.addListener(msg => {
   if (!msg || msg.homeboard !== 'media-cmd' || msg.card !== m[1]) return;
   const list = medias();

@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homeboard component</title>
+<!-- A sandboxed page (manifest.json "sandbox"): it may run the component's own scripts, but it has no access to the
+     extension, your boards or your files, and it talks to the board only through messages. See docs/COMPONENTS.md. -->
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; color: var(--text, #e8e8ea);
+    font: 14px/1.4 var(--font, system-ui, "Segoe UI", sans-serif); }
+  #hb-error { position: fixed; left: 6px; right: 6px; bottom: 6px; z-index: 2147483647; display: none; padding: 6px 8px; border-radius: 8px;
+    background: rgba(120, 20, 20, .92); color: #fff; font: 12px/1.35 Consolas, monospace; white-space: pre-wrap; max-height: 45%; overflow: auto; }
+</style>
+<script src="component-runtime.js"></script>
+</head>
+<body>
+<div id="hb-error"></div>
+</body>
+</html>

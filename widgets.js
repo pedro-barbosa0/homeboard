@@ -72,6 +72,35 @@ function pool(host, saved, onChange) {
     neon: { name: 'Neon', felt: ['#0d2233', '#081521'], bed: '#07111c', cushion: '#0f2c40', wood: ['#191238', '#150f30', '#0f0a26'], neon: true,
             sight: 'rgba(0,240,255,.7)', nose: 'rgba(0,240,255,.8)', line: 'rgba(0,240,255,.3)', text: 'rgba(0,240,255,.9)' },
   };
+  /* A table in the colours of the cover of what plays: the felt from its vivid colour (deepened so the balls read),
+     the wood from its dark one, the cushions a little lighter. */
+  const mixHex = (a, b, k) => { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), x = p(a), y = p(b); return '#' + x.map((v, j) => Math.round(v + (y[j] - v) * k).toString(16).padStart(2, '0')).join(''); };
+  function coverTable(p) {
+    const deep = mixHex(p.vivid, '#000000', .25);
+    return { name: 'From the album cover', felt: [mixHex(deep, p.dark, .15), mixHex(deep, p.dark, .45)], bed: mixHex(deep, p.dark, .65), cushion: mixHex(p.vivid, p.light, .12),
+      wood: [mixHex(p.dark, '#000000', .1), mixHex(p.dark, '#000000', .3), mixHex(p.dark, '#000000', .5)], sight: mixHex(p.light, '#ffffff', .3) };
+  }
+  /* a small drawn table, for the gallery */
+  function tablePreview(t) {
+    return () => {
+      const box = document.createElement('div');
+      box.style.cssText = `position:absolute;inset:14px 12px;border-radius:9px;background:linear-gradient(${t.wood.join(',')});box-shadow:0 6px 14px rgba(0,0,0,.45)`;
+      const felt = document.createElement('div');
+      felt.style.cssText = `position:absolute;inset:9px;border-radius:4px;background:radial-gradient(ellipse at 50% 45%, ${t.felt[0]}, ${t.felt[1]});box-shadow:inset 0 0 0 3px ${t.neon ? 'var(--accent)' : t.cushion}${t.neon ? ',0 0 10px color-mix(in srgb, var(--accent) 60%, transparent)' : ''}`;
+      box.append(felt);
+      for (const [x, y] of [[0, 0], [50, 0], [100, 0], [0, 100], [50, 100], [100, 100]]) {
+        const p = document.createElement('i');
+        p.style.cssText = `position:absolute;left:calc(${x}% - 5px);top:calc(${y}% - 5px);width:10px;height:10px;border-radius:50%;background:#0b0b0d`;
+        felt.append(p);
+      }
+      for (const [x, y, c] of [[30, 50, '#f4f1e6'], [66, 42, '#f2c230'], [72, 58, '#e0483e'], [78, 50, '#2f6fde']]) {
+        const b = document.createElement('i');
+        b.style.cssText = `position:absolute;left:${x}%;top:${y}%;width:7px;height:7px;border-radius:50%;background:${c};box-shadow:inset -1px -1px 2px rgba(0,0,0,.35)`;
+        felt.append(b);
+      }
+      return box;
+    };
+  }
   /* Cues. "auto" follows the table (the neon cue on the neon table, maple otherwise). */
   const CUES = {
     maple: { name: 'Maple', shaft: '#d8b98a', butt: '#3a2416', wrap: '#1c1c1c', ring: '#f4f1e6' },
@@ -85,6 +114,7 @@ function pool(host, saved, onChange) {
     neon: { name: 'Neon', shaft: '#00f0ff', butt: '#ff2bd6', wrap: '#7a1fa0', ring: '#ffffff', glow: true },
   };
   let skin = 'auto', stick = 'auto';
+  let coverNow = null, coverFade = 0;                  // the table in the cover's colours (see coverTable)
   const colorOf = n => (n === 0 ? COLORS[0] : n <= 8 ? COLORS[n] : COLORS[n - 8]);
   const groupOf = n => (n === 0 || n === 8 ? null : n < 8 ? 'solids' : 'stripes');
   const other = g => (g === 'solids' ? 'stripes' : 'solids');
@@ -152,7 +182,7 @@ function pool(host, saved, onChange) {
     } catch { return false; }
   }
   const remember = () => { try { onChange(snapshot()); } catch { /* host gone */ } };
-  if (saved && (saved.skin === 'auto' || TABLES[saved.skin])) skin = saved.skin;
+  if (saved && (saved.skin === 'auto' || saved.skin === 'cover' || TABLES[saved.skin])) skin = saved.skin;
   if (saved && (saved.stick === 'auto' || CUES[saved.stick])) stick = saved.stick;
 
   /* ---- physics ---- */
@@ -487,8 +517,13 @@ function pool(host, saved, onChange) {
   }
   function draw() {
     if (!layout()) return;
-    const pal = TABLES[skin] || (document.body.dataset.theme === 'neon' ? TABLES.neon : TABLES.green);
+    let pal = skin === 'cover' ? (coverNow || TABLES.green) : TABLES[skin] || (document.body.dataset.theme === 'neon' ? TABLES.neon : TABLES.green);
     const neon = !!pal.neon;
+    // the neon table glows in the accent colour (which can follow the album cover), not in fixed colours
+    const acc = neon ? (getComputedStyle(document.documentElement).getPropertyValue('--accent').match(/\d+(\.\d+)?/g) || [0, 240, 255]).slice(0, 3).map(Number) : null;
+    const accA = a => acc ? `rgba(${acc[0]},${acc[1]},${acc[2]},${a})` : '';
+    if (neon) pal = { ...pal, sight: accA(.75), nose: accA(.85), line: accA(.3), text: accA(.9), cushion: `rgb(${acc.map(v => Math.round(v * .18)).join(',')})`,
+      felt: [`rgb(${acc.map(v => Math.round(8 + v * .07)).join(',')})`, `rgb(${acc.map(v => Math.round(5 + v * .04)).join(',')})`] };
     const { s, ox, oy, dpr } = view;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -497,11 +532,11 @@ function pool(host, saved, onChange) {
     // frame, bed, cushions, pockets
     const wood = ctx.createLinearGradient(0, -RAIL, 0, H + RAIL);
     pal.wood.forEach((c, i) => wood.addColorStop(i / (pal.wood.length - 1), c));
-    ctx.shadowColor = neon ? '#ff2bd6' : 'rgba(0,0,0,.5)'; ctx.shadowBlur = neon ? 22 : 18; ctx.shadowOffsetY = neon ? 0 : 6;
+    ctx.shadowColor = neon ? accA(1) : 'rgba(0,0,0,.5)'; ctx.shadowBlur = neon ? 22 : 18; ctx.shadowOffsetY = neon ? 0 : 6;
     ctx.fillStyle = wood;
     ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 30); ctx.fill();
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.shadowColor = 'transparent';
-    if (neon) { ctx.strokeStyle = '#ff2bd6'; ctx.lineWidth = 2.5; ctx.stroke(); }
+    if (neon) { ctx.strokeStyle = accA(1); ctx.lineWidth = 2.5; ctx.stroke(); }
     ctx.fillStyle = pal.bed;
     ctx.beginPath(); ctx.roundRect(-LIP - 2, -LIP - 2, W + 2 * LIP + 4, H + 2 * LIP + 4, 12); ctx.fill();
     const felt = ctx.createRadialGradient(W / 2, H / 2, 60, W / 2, H / 2, W * .62);
@@ -616,6 +651,41 @@ function pool(host, saved, onChange) {
     canvas.setAttribute('aria-label', 'Pool table. ' + statusLine());
     kick();
   }
+  /* the cover's table follows the music; a new song's colours fade in over a second and a bit */
+  const M = window.HomeboardMusic;
+  const unMusic = M ? M.subscribe(sg => {
+    if (!canvas.isConnected && coverNow) { unMusic && unMusic(); return; }
+    if (!sg || !sg.art) return;
+    M.palette(sg.art).then(p => {
+      if (!p) return;
+      const to = coverTable(p), from = coverNow;
+      if (!from || skin !== 'cover') { coverNow = to; if (skin === 'cover') draw(); return; }
+      cancelAnimationFrame(coverFade);
+      const t0 = performance.now(), mixT = (a, b, k) => ({ ...b, felt: a.felt.map((c, i) => mixHex(c, b.felt[i], k)), bed: mixHex(a.bed, b.bed, k), cushion: mixHex(a.cushion, b.cushion, k), wood: a.wood.map((c, i) => mixHex(c, b.wood[i], k)), sight: mixHex(a.sight, b.sight, k) });
+      const step = now => { const k = Math.min(1, (now - t0) / 1300), e = k * k * (3 - 2 * k); coverNow = mixT(from, to, e); draw(); if (k < 1 && canvas.isConnected) coverFade = requestAnimationFrame(step); };
+      coverFade = requestAnimationFrame(step);
+    });
+  }) : null;
+  /* the neon table glows in the accent, which fades to each new cover's colour (1.6 s, see style.css): follow the fade.
+     Only the accent's own value and the theme are watched, so other style changes cost nothing. */
+  let accentSeen = document.documentElement.style.getPropertyValue('--accent') + '|' + document.body.dataset.theme, accentUntil = 0, accentFrame = 0;
+  const followAccent = () => {
+    const key = document.documentElement.style.getPropertyValue('--accent') + '|' + document.body.dataset.theme;
+    if (!canvas.isConnected) { accentWatch.disconnect(); return; }
+    if (key === accentSeen) return;
+    accentSeen = key;
+    if (!neonTable()) { if (skin === 'auto') draw(); return; }   // switching away from the neon theme repaints once
+    redrawFor(1900);
+  };
+  const neonTable = () => skin === 'neon' || (skin === 'auto' && document.body.dataset.theme === 'neon') || !!TABLES[skin]?.neon;
+  function redrawFor(ms) {
+    accentUntil = performance.now() + ms;
+    if (!accentFrame) accentFrame = requestAnimationFrame(function run(now) { draw(); accentFrame = now < accentUntil && canvas.isConnected ? requestAnimationFrame(run) : 0; });
+  }
+  if (neonTable()) redrawFor(1900);                    // a fresh page fades the accent in from its default too
+  const accentWatch = new MutationObserver(followAccent);
+  accentWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+  accentWatch.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
 
   /* ---- loop: only runs while something is moving or being aimed ---- */
   function tick(now) {
@@ -707,8 +777,9 @@ function pool(host, saved, onChange) {
       { label: 'Choose a cue', icon: 'layers', action: openRack },
       {
         label: 'Change table', icon: 'layers',
-        items: [{ label: 'Match the page theme', checked: skin === 'auto', action() { skin = 'auto'; refresh(); remember(); } },
-          ...Object.entries(TABLES).map(([id, t]) => ({ label: t.name, checked: skin === id, action() { skin = id; refresh(); remember(); } }))],
+        items: [{ label: 'Match the page theme', checked: skin === 'auto', preview: tablePreview(document.body.dataset.theme === 'neon' ? TABLES.neon : TABLES.green), action() { skin = 'auto'; refresh(); remember(); } },
+          { label: 'From the album cover', checked: skin === 'cover', preview: tablePreview(coverNow || { ...TABLES.green, felt: ['#7a5cff', '#3b2a8a'], cushion: '#9c86ff', wood: ['#2a2240', '#1d1830', '#141022'] }), action() { skin = 'cover'; refresh(); draw(); remember(); } },
+          ...Object.entries(TABLES).map(([id, t]) => ({ label: t.name, checked: skin === id, preview: tablePreview(t), action() { skin = id; refresh(); remember(); } }))],
       },
       { info: 'Aim with the mouse, hold and pull back for power. Scroll for top or back spin.' },
     ],
@@ -1164,6 +1235,7 @@ function pack(host, saved, onChange) {
   };
 }
 
+window.HomeboardPacks = { SKINS, SCENES };              // the pack faces and scenes, also for the Tabacaria (widgets-smoke.js)
 window.HomeboardWidgets = {
   pool: { label: '8-ball pool', menu: 'Pool table', w: 760, h: 408, ratio: 1080 / 580, bare: true, create: pool },
   pack: { label: 'Cigarette pack', menu: 'Cigarette pack', w: 207, h: 220, ratio: 230 / 245, bare: true, create: pack },
